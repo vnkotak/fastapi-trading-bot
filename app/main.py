@@ -21,10 +21,21 @@ TELEGRAM_CHAT_ID = "980258123"
 # ------------------------------------------------------------------------------
 # Telegram Bot - Send Message
 # ------------------------------------------------------------------------------
-def send_telegram_message(text: str) -> bool:
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    response = requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID, "text": text})
-    return response.status_code == 200
+def send_telegram(message):
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        response = requests.post(url, json=payload)
+        if response.status_code == 200:
+            print("📬 Telegram alert sent.")
+        else:
+            print("❌ Telegram failed:", response.text)
+    except Exception as e:
+        print("⚠️ Telegram error:", e)
 
 # ------------------------------------------------------------------------------
 # API Endpoints
@@ -32,7 +43,7 @@ def send_telegram_message(text: str) -> bool:
 
 @app.get("/")
 def root():
-    send_telegram_message("🚀 FastAPI has been deployed and is live.")
+    send_telegram("🚀 FastAPI has been deployed and is live.")
     return {"message": "✅ FastAPI is running. Use /run-screener or /webhook as needed."}
 
 @app.get("/run-screener")
@@ -43,7 +54,7 @@ def trigger_screener():
 @app.post("/webhook")
 def webhook(data: dict):
     print("📩 Received webhook!", data)
-    send_telegram_message("📩 Received a webhook event")
+    send_telegram("📩 Received a webhook event")
     return {"status": "success"}
 
 # ------------------------------------------------------------------------------
