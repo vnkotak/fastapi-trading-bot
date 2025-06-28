@@ -147,6 +147,9 @@ def screener_data():
             time.sleep(0.2)
     return {"stocks": results}
 
+def run_screener():
+    return screener_data()
+
 @app.get("/")
 def root():
     return {"message": "✅ Screener API is live. Use /screener-data."}
