@@ -5,7 +5,7 @@ import requests
 from typing import Optional
 
 # 👇 Add screener import
-from screener import run_screener
+from screener import run_screener, analyze_stock, fetch_nifty_100
 
 app = FastAPI()
 
@@ -40,6 +40,19 @@ def send_telegram(message):
 # ------------------------------------------------------------------------------
 # API Endpoints
 # ------------------------------------------------------------------------------
+
+@app.get("/screener-data")
+def screener_data():
+    full_matches = []
+
+    tickers = fetch_nifty_100()
+    for ticker in tickers:
+        stock, match_type = analyze_stock(ticker)
+        if match_type == "full":
+            full_matches.append(stock)
+        time.sleep(0.2)
+
+    return {"stocks": full_matches}
 
 @app.get("/")
 def root():
