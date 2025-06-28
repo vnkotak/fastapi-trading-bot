@@ -7,8 +7,17 @@ from typing import Optional
 
 # 👇 Add screener import
 from screener import run_screener, analyze_stock, fetch_nifty_100
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # You can restrict to StackBlitz domain later
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ------------------------------------------------------------------------------
 # YOUR CREDENTIALS HERE
