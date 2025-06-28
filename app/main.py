@@ -54,3 +54,21 @@ def webhook(data: dict):
 # FYERS_API_KEY = "<FYERS_API_KEY>"
 # FYERS_SECRET = "<FYERS_SECRET>"
 # FYERS_REDIRECT_URI = "<FYERS_REDIRECT_URI>"
+
+from fastapi import Request
+from fastapi.middleware.cors import CORSMiddleware
+
+# Optional: allow all CORS (in case you later connect frontend)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 🚀 Notify on startup
+@app.on_event("startup")
+async def notify_on_startup():
+    message = "🚀 Your FastAPI trading bot is *deployed successfully* and is *online!*"
+    send_telegram_message(message)
