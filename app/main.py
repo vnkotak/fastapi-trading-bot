@@ -32,6 +32,7 @@ def send_telegram_message(text: str) -> bool:
 
 @app.get("/")
 def root():
+    send_telegram_message("🚀 FastAPI has been deployed and is live.")
     return {"message": "✅ FastAPI is running. Use /run-screener or /webhook as needed."}
 
 @app.get("/run-screener")
@@ -41,9 +42,6 @@ def trigger_screener():
 
 @app.post("/webhook")
 def webhook(data: dict):
-    """
-    This endpoint is called by TradingView with alerts.
-    """
     print("📩 Received webhook!", data)
     send_telegram_message("📩 Received a webhook event")
     return {"status": "success"}
