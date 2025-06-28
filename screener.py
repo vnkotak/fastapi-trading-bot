@@ -1,14 +1,25 @@
-
 import yfinance as yf
 import pandas as pd
 import numpy as np
 import time
 import requests
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-# === TELEGRAM SETUP ===
-TELEGRAM_BOT_TOKEN = "7468828306:AAG6uOChh0SFLZwfhnNMdljQLHTcdPcQTa4"
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+TELEGRAM_BOT_TOKEN = "7468828306:AAG6uOChhOSFLZwfhnNMdljQLHTcdPcQTa4"
 TELEGRAM_CHAT_ID = "980258123"
 
+# === TELEGRAM SETUP ===
 def send_telegram(message):
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -27,8 +38,7 @@ def send_telegram(message):
 
 # === DYNAMIC STOCK FETCHING ===
 def fetch_nifty_100():
-    try:
-            return [
+    return [
         "ADANIENT.NS", "ADANIGREEN.NS", "ADANIPORTS.NS", "ADANIPOWER.NS", "AMBUJACEM.NS",
         "APOLLOHOSP.NS", "ASIANPAINT.NS", "AXISBANK.NS", "BAJAJ-AUTO.NS", "BAJAJFINSV.NS",
         "BAJFINANCE.NS", "BANDHANBNK.NS", "BANKBARODA.NS", "BEL.NS", "BERGEPAINT.NS",
@@ -50,12 +60,7 @@ def fetch_nifty_100():
         "TVSMOTOR.NS", "UBL.NS", "ULTRACEMCO.NS", "UPL.NS", "VEDL.NS",
         "VOLTAS.NS", "WIPRO.NS", "ZEEL.NS"
     ]
-    except Exception as e:
-        print(f"⚠️ Could not fetch NIFTY 100 from NSE: {e}")
-        return [
-            "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS",
-            "LT.NS", "SBIN.NS", "KOTAKBANK.NS", "HINDUNILVR.NS", "ITC.NS"
-        ]
+
 
 # === INDICATOR CALCULATIONS ===
 def calculate_rsi(series, window=14):
@@ -74,96 +79,74 @@ def calculate_macd(series, slow=26, fast=12, signal=9):
     signal_line = macd.ewm(span=signal, adjust=False).mean()
     return macd, signal_line
 
-# === STRATEGY THRESHOLDS ===
-RSI_THRESHOLD = 60
-VOLUME_MULTIPLIER = 2.5
-MACD_SIGNAL_DIFF = 1.0
-
 # === SCREENING FUNCTION ===
 def analyze_stock(ticker):
-    print(f"\n📊 Analyzing: {ticker}")
     try:
-        df = yf.download(ticker, period="3mo", interval="1d", progress=False)
+        df = yf.download(ticker, period="6mo", interval="1d", progress=False)
 
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
         df.columns.name = None
 
         if df.empty or any(col not in df.columns for col in ['Close', 'Volume']) or len(df) < 50:
-            print("⚠️ Missing data or columns")
-            return None, None
+            return None
 
         df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
         df['RSI'] = calculate_rsi(df['Close'])
         df['MACD'], df['Signal'] = calculate_macd(df['Close'])
         df['Volume_avg'] = df['Volume'].rolling(window=20).mean()
+        df['Signal_Trigger'] = (
+            (df['Close'] > df['EMA_50']) &
+            (df['RSI'] > 55) &
+            (df['MACD'] > df['Signal']) &
+            (df['Volume'] > 1.2 * df['Volume_avg'])
+        )
+
+        df.dropna(inplace=True)
 
         latest = df.iloc[-1]
-        macd_diff = latest["MACD"] - latest["Signal"]
-
-        conditions = {
-            "Close > EMA_50": latest['Close'] > latest['EMA_50'],
-            f"RSI > {RSI_THRESHOLD}": latest['RSI'] > RSI_THRESHOLD,
-            f"MACD > Signal + {MACD_SIGNAL_DIFF}": macd_diff > MACD_SIGNAL_DIFF,
-            f"Volume > {VOLUME_MULTIPLIER}x avg": latest['Volume'] > latest['Volume_avg'] * VOLUME_MULTIPLIER
-        }
-
-        matched_count = sum(conditions.values())
-        print(f"🧪 Match: {matched_count}/4 → {conditions}")
+        history = df.tail(30).copy()
+        history_json = [
+            {
+                "date": str(idx.date()),
+                "close": round(row.Close, 2),
+                "ema": round(row.EMA_50, 2),
+                "rsi": round(row.RSI, 2),
+                "macd": round(row.MACD, 2),
+                "signal": round(row.Signal, 2),
+                "volume": int(row.Volume),
+                "volumeAvg": int(row.Volume_avg),
+                "signal_trigger": bool(row.Signal_Trigger)
+            }
+            for idx, row in history.iterrows()
+        ]
 
         stock_info = {
-            "Ticker": ticker,
-            "Close": round(latest['Close'], 2),
-            "RSI": round(latest['RSI'], 2),
-            "MACD": round(latest['MACD'], 2),
-            "Volume": int(latest['Volume'])
+            "ticker": ticker,
+            "close": round(latest['Close'], 2),
+            "rsi": round(latest['RSI'], 2),
+            "macd": round(latest['MACD'], 2),
+            "volume": int(latest['Volume']),
+            "history": history_json
         }
 
-        if matched_count == 4:
-            return stock_info, "full"
-        elif matched_count == 3:
-            return stock_info, "partial"
-        else:
-            return None, None
+        return stock_info
 
     except Exception as e:
-        print(f"❌ Error: {e}")
-        return None, None
+        print(f"❌ Error for {ticker}: {e}")
+        return None
 
-# === FORMAT & SEND RESULTS ===
-def format_stock_list(title, stock_list):
-    message = f"*{title}*\n"
-    for stock in stock_list:
-        message += f"🔹 `{stock['Ticker']}`  | 💰 {stock['Close']}  | 💹 RSI: {stock['RSI']}\n"
-    return message
-
-def run_screener():
-    full_matches = []
-    partial_matches = []
-
+@app.get("/screener-data")
+def screener_data():
     tickers = fetch_nifty_100()
+    results = []
     for ticker in tickers:
-        stock, match_type = analyze_stock(ticker)
-        if match_type == "full":
-            full_matches.append(stock)
-        elif match_type == "partial":
-            partial_matches.append(stock)
-        time.sleep(0.2)
+        stock = analyze_stock(ticker)
+        if stock:
+            results.append(stock)
+            time.sleep(0.2)
+    return {"stocks": results}
 
-    if full_matches:
-        df_full = pd.DataFrame(full_matches)
-        print("\n🎯 FULL MATCH STOCKS:\n", df_full)
-        message = format_stock_list("🎯 *Full Match Stocks*", full_matches)
-        send_telegram(message)
-    else:
-        send_telegram("🚫 *No full-match stocks today.*")
-
-    if partial_matches:
-        df_partial = pd.DataFrame(partial_matches)
-        print("\n🟡 PARTIAL MATCH STOCKS:\n", df_partial)
-        message = format_stock_list("🟡 *Partial Match Stocks (3/4)*", partial_matches)
-        send_telegram(message)
-
-# === RUN ===
-if __name__ == "__main__":
-    run_screener()
+@app.get("/")
+def root():
+    return {"message": "✅ Screener API is live. Use /screener-data."}
