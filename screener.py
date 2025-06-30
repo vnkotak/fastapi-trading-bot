@@ -84,20 +84,29 @@ def analyze_stock(ticker):
             (df['Volume'] > 1.2 * df['Volume_avg'])
         )
 
-        df['Sell_Trigger'] = False  # new column for sell signals
+        df['Sell_Trigger'] = False
         df.dropna(inplace=True)
 
-        # Add sell logic
+        # ✅ Hybrid Exit + Stop Loss
         in_position = False
+        entry_price = None
+
         for i in range(len(df)):
-            if df.iloc[i]['Signal_Trigger']:
+            row = df.iloc[i]
+
+            if row['Signal_Trigger']:
                 in_position = True
+                entry_price = row['Close']
+
             elif in_position:
-                if (
-                    df.iloc[i]['RSI'] < 50 or
-                    df.iloc[i]['MACD'] < df.iloc[i]['Signal'] or
-                    df.iloc[i]['Close'] < df.iloc[i]['EMA_50']
-                ):
+                sell_condition = (
+                    (row['RSI'] < 50) or
+                    (row['MACD'] < row['Signal']) or
+                    (row['Close'] < row['EMA_50'])
+                )
+                stop_loss_hit = row['Close'] < entry_price * 0.97  # 3% loss
+
+                if (sell_condition and row['Close'] > entry_price) or stop_loss_hit:
                     df.at[df.index[i], 'Sell_Trigger'] = True
                     in_position = False
 
@@ -114,7 +123,7 @@ def analyze_stock(ticker):
                 "volume": int(row.Volume),
                 "volumeAvg": int(row.Volume_avg),
                 "signal_trigger": bool(row.Signal_Trigger),
-                "sell_trigger": bool(row.Sell_Trigger)  # new field
+                "sell_trigger": bool(row.Sell_Trigger)
             }
             for idx, row in history.iterrows()
         ]
