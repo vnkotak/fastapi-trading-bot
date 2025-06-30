@@ -28,6 +28,12 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 TELEGRAM_BOT_TOKEN = "7468828306:AAG6uOChh0SFLZwfhnNMdljQLHTcdPcQTa4"
 TELEGRAM_CHAT_ID = "980258123"
 
+# === STRATEGY THRESHOLDS ===
+RSI_THRESHOLD = 60
+VOLUME_MULTIPLIER = 2.5
+MACD_SIGNAL_DIFF = 1.0
+
+
 # ------------------------------------------------------------------------------
 # Telegram Bot - Send Message
 # ------------------------------------------------------------------------------
