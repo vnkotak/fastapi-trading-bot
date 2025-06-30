@@ -28,12 +28,12 @@ def send_telegram(message):
 def fetch_nifty_100():
     try:
         return [
-            "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS"
+            "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS","TORNTPHARM.NS"
         ]
     except Exception as e:
         print(f"⚠️ Could not fetch NIFTY 100 from NSE: {e}")
         return [
-            "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS"
+            "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "TORNTPHARM.NS"
         ]
 
 # === INDICATOR CALCULATIONS ===
