@@ -57,9 +57,20 @@ def screener_data():
 
     tickers = fetch_nifty_100()
     for ticker in tickers:
-        stock, match_type = analyze_stock(ticker)
-        if match_type == "full":
+        stock = analyze_stock(ticker)
+        if not stock:
+            continue
+
+        latest = stock["history"][-1]
+        conditions = [
+            latest["close"] > latest["ema"],
+            latest["rsi"] > RSI_THRESHOLD,
+            latest["macd"] > latest["signal"] + MACD_SIGNAL_DIFF,
+            latest["volume"] > VOLUME_MULTIPLIER * latest["volumeAvg"]
+        ]
+        if sum(conditions) == 4:
             full_matches.append(stock)
+
         time.sleep(0.2)
 
     return {"stocks": full_matches}
