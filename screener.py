@@ -76,6 +76,7 @@ def analyze_stock(ticker):
         df['RSI'] = calculate_rsi(df['Close'])
         df['MACD'], df['Signal'] = calculate_macd(df['Close'])
         df['Volume_avg'] = df['Volume'].rolling(window=20).mean()
+
         df['Signal_Trigger'] = (
             (df['Close'] > df['EMA_50']) &
             (df['RSI'] > 55) &
@@ -83,7 +84,22 @@ def analyze_stock(ticker):
             (df['Volume'] > 1.2 * df['Volume_avg'])
         )
 
+        df['Sell_Trigger'] = False  # new column for sell signals
         df.dropna(inplace=True)
+
+        # Add sell logic
+        in_position = False
+        for i in range(len(df)):
+            if df.iloc[i]['Signal_Trigger']:
+                in_position = True
+            elif in_position:
+                if (
+                    df.iloc[i]['RSI'] < 50 or
+                    df.iloc[i]['MACD'] < df.iloc[i]['Signal'] or
+                    df.iloc[i]['Close'] < df.iloc[i]['EMA_50']
+                ):
+                    df.at[df.index[i], 'Sell_Trigger'] = True
+                    in_position = False
 
         latest = df.iloc[-1]
         history = df.tail(30).copy()
@@ -97,7 +113,8 @@ def analyze_stock(ticker):
                 "signal": round(row.Signal, 2),
                 "volume": int(row.Volume),
                 "volumeAvg": int(row.Volume_avg),
-                "signal_trigger": bool(row.Signal_Trigger)
+                "signal_trigger": bool(row.Signal_Trigger),
+                "sell_trigger": bool(row.Sell_Trigger)  # new field
             }
             for idx, row in history.iterrows()
         ]
@@ -116,7 +133,7 @@ def analyze_stock(ticker):
     except Exception as e:
         print(f"❌ Error for {ticker}: {e}")
         return None
-
+        
 # === FORMAT & SEND RESULTS ===
 def format_stock_list(title, stock_list):
     message = f"*{title}*\n"
