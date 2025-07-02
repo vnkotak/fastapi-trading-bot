@@ -111,6 +111,25 @@ def analyze_stock(ticker):
                     in_position = False
 
         latest = df.iloc[-1]
+
+        # Count how many of 4 conditions are True on the latest day
+        cond1 = latest['Close'] > latest['EMA_50']
+        cond2 = latest['RSI'] > RSI_THRESHOLD
+        cond3 = latest['MACD'] > latest['Signal'] + MACD_SIGNAL_DIFF
+        cond4 = latest['Volume'] > VOLUME_MULTIPLIER * latest['Volume_avg']
+        match_count = sum([cond1, cond2, cond3, cond4])
+        
+        # Determine match type
+        if match_count == 4:
+            match_type = "full"
+        elif match_count == 3:
+            match_type = "partial"
+        else:
+            match_type = None  # ignore 0-2
+                
+        if match_type is None:
+            return None
+
         history = df.tail(30).copy()
         history_json = [
             {
@@ -127,13 +146,14 @@ def analyze_stock(ticker):
             }
             for idx, row in history.iterrows()
         ]
-
+        
         stock_info = {
             "ticker": ticker,
             "close": round(latest['Close'], 2),
             "rsi": round(latest['RSI'], 2),
             "macd": round(latest['MACD'], 2),
             "volume": int(latest['Volume']),
+            "match_type": match_type,
             "history": history_json
         }
 
