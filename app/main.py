@@ -93,7 +93,7 @@ def trigger_screener():
 
 @app.get("/screener-meta")
 def screener_meta():
-    tickers = get_nse_ticker_list()  # You can hardcode or load from a JSON/CSV
+    tickers = fetch_nifty_100()  # You can hardcode or load from a JSON/CSV
     return {"total": len(tickers), "tickers": tickers}
 
 @app.get("/screener-stock")
