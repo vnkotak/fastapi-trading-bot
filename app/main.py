@@ -91,6 +91,16 @@ def trigger_screener():
     run_screener()
     return {"status": "✅ Screener executed. Check Telegram for results."}
 
+@app.get("/screener-meta")
+def screener_meta():
+    tickers = get_nse_ticker_list()  # You can hardcode or load from a JSON/CSV
+    return {"total": len(tickers), "tickers": tickers}
+
+@app.get("/screener-stock")
+def screener_stock(ticker: str):
+    result = analyze_stock(ticker)
+    return result
+
 @app.post("/webhook")
 def webhook(data: dict):
     print("📩 Received webhook!", data)
