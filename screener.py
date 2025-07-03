@@ -95,10 +95,7 @@ def analyze_stock(ticker):
         latest = df.iloc[-1]
 
         # Count how many of 4 conditions are True on the latest day
-        print(f"{latest}")
-
         match_type = check_strategy_match(latest)
-        print(f"📌 Match Type in trading.py for {ticker}: {match_type}")
 
                         
         if match_type is None:
