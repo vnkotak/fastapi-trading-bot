@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import time
 import requests
-from indicators import calculate_rsi, calculate_macd
+from indicators import calculate_rsi, calculate_macd, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, RSI_THRESHOLD, VOLUME_MULTIPLIER, MACD_SIGNAL_DIFF
 
 
 # === TELEGRAM SETUP ===
@@ -38,11 +38,6 @@ def fetch_nifty_100():
         return [
             "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "TORNTPHARM.NS"
         ]
-
-# === STRATEGY THRESHOLDS ===
-RSI_THRESHOLD = 60
-VOLUME_MULTIPLIER = 2.5
-MACD_SIGNAL_DIFF = 1.0
 
 # === SCREENING FUNCTION ===
 def analyze_stock(ticker):
