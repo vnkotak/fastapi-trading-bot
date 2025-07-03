@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import time
 import requests
+from indicators import calculate_rsi, calculate_macd
+
 
 # === TELEGRAM SETUP ===
 TELEGRAM_BOT_TOKEN = "7468828306:AAG6uOChh0SFLZwfhnNMdljQLHTcdPcQTa4"
