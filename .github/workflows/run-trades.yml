@@ -1,0 +1,13 @@
+name: Run Trading Job Every Hour (Weekdays)
+
+on:
+  schedule:
+    - cron: '30 4-10 * * 1-5'  # Every hour from 9:30 AM–3:30 PM IST
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  run-trades:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Trading Endpoint
+        run: curl -X GET https://fastapi-trading-bot-1.onrender.com/run-trades
