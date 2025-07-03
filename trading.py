@@ -4,6 +4,8 @@ from datetime import datetime
 from supabase import create_client, Client
 import os
 from indicators import calculate_rsi, calculate_macd
+# === Strategy Thresholds (Moved to indicators.py) ===
+from indicators import RSI_THRESHOLD, VOLUME_MULTIPLIER, MACD_SIGNAL_DIFF, SUPABASE_URL, SUPABASE_KEY
 
 # Initialize Supabase
 #SUPABASE_URL = "https://lfwgposvyckptsrjkkyx.supabase.co"  # e.g. "https://yourproject.supabase.co"
@@ -11,9 +13,6 @@ from indicators import calculate_rsi, calculate_macd
 #SUPABASE_URL = os.environ.get("SUPABASE_URL")
 #SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# === Strategy Thresholds (Moved to indicators.py) ===
-from indicators import RSI_THRESHOLD, VOLUME_MULTIPLIER, MACD_SIGNAL_DIFF, SUPABASE_URL, SUPABASE_KEY
 
 def get_last_trade(ticker):
     response = supabase.table("trades").select("*").eq("ticker", ticker).order("timestamp", desc=True).limit(1).execute()
