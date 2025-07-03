@@ -5,6 +5,7 @@ from supabase import create_client, Client
 import os
 from indicators import calculate_rsi, calculate_macd
 
+
 # Initialize Supabase
 SUPABASE_URL = "https://lfwgposvyckptsrjkkyx.supabase.co"  # e.g. "https://yourproject.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxmd2dwb3N2eWNrcHRzcmpra3l4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTg0MjI3MSwiZXhwIjoyMDY1NDE4MjcxfQ.7Pjsw_HpyE5RHHFshsRT3Ibpn1b6N4CO3F4rIw_GSvc"
@@ -32,21 +33,23 @@ def execute_trade(ticker, action, price):
 def analyze_for_trading(ticker):
     print(f"\n🤖 Trading Analysis: {ticker}")
     try:
-        df = yf.download(ticker, period="3mo", interval="1d", progress=False, auto_adjust=False)
+        df = yf.download(ticker, period="3mo", interval="1d", progress=False)
 
-        if df.empty or len(df) < 50:
-            print("⚠️ Not enough data")
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        df.columns.name = None
+
+        if df.empty or any(col not in df.columns for col in ['Close', 'Volume']) or len(df) < 50:
+            print("⚠️ Missing data or columns")
             return
 
         df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
         df['RSI'] = calculate_rsi(df['Close'])
         df['MACD'], df['Signal'] = calculate_macd(df['Close'])
+        df['Volume_avg'] = df['Volume'].rolling(window=20).mean()
+
         df.dropna(inplace=True)
-
         latest = df.iloc[-1]
-        macd_value = float(latest['MACD'].item()) if hasattr(latest['MACD'], 'item') else float(latest['MACD'])
-        signal_value = float(latest['Signal'].item()) if hasattr(latest['Signal'], 'item') else float(latest['Signal'])
-
         last_trade = get_last_trade(ticker)
 
         if not last_trade:
@@ -54,18 +57,18 @@ def analyze_for_trading(ticker):
             if (
                 latest['Close'] > latest['EMA_50'] and
                 latest['RSI'] > 55 and
-                macd_value > signal_value
+                latest['MACD'] > latest['Signal']
             ):
-                execute_trade(ticker, "BUY", latest['Close'])
+                execute_trade(ticker, "BUY", float(latest['Close']))
 
         elif last_trade['status'] == "OPEN":
-            buy_price = last_trade['price']
+            buy_price = float(last_trade['price'])
             profit_pct = ((latest['Close'] - buy_price) / buy_price) * 100
 
             reason = []
             if latest['RSI'] < 45:
                 reason.append("RSI<45")
-            if macd_value < signal_value:
+            if latest['MACD'] < latest['Signal']:
                 reason.append("MACD Bearish")
             if latest['Close'] < latest['EMA_50']:
                 reason.append("Price<EMA50")
@@ -74,7 +77,7 @@ def analyze_for_trading(ticker):
 
             if reason:
                 print(f"🔻 SELL {ticker} triggered due to: {', '.join(reason)}")
-                execute_trade(ticker, "SELL", latest['Close'])
+                execute_trade(ticker, "SELL", float(latest['Close']))
 
     except Exception as e:
         print(f"❌ Error in trading analysis for {ticker}: {e}")
