@@ -4,6 +4,7 @@ import numpy as np
 import time
 import requests
 from indicators import calculate_rsi, calculate_macd, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, RSI_THRESHOLD, VOLUME_MULTIPLIER, MACD_SIGNAL_DIFF
+from indicators import check_strategy_match
 
 
 # === TELEGRAM SETUP ===
@@ -94,11 +95,7 @@ def analyze_stock(ticker):
         latest = df.iloc[-1]
 
         # Count how many of 4 conditions are True on the latest day
-        cond1 = latest['Close'] > latest['EMA_50']
-        cond2 = latest['RSI'] > RSI_THRESHOLD
-        cond3 = latest['MACD'] > latest['Signal'] + MACD_SIGNAL_DIFF
-        cond4 = latest['Volume'] > VOLUME_MULTIPLIER * latest['Volume_avg']
-        match_count = sum([cond1, cond2, cond3, cond4])
+        match_type = check_strategy_match(latest)
         
         # Determine match type
         if match_count == 4:
