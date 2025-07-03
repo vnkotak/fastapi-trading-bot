@@ -44,6 +44,9 @@ def analyze_for_trading(ticker):
         df.dropna(inplace=True)
 
         latest = df.iloc[-1]
+        macd_value = float(latest['MACD'])
+        signal_value = float(latest['Signal'])
+
         last_trade = get_last_trade(ticker)
 
         if not last_trade:
@@ -51,7 +54,7 @@ def analyze_for_trading(ticker):
             if (
                 latest['Close'] > latest['EMA_50'] and
                 latest['RSI'] > 55 and
-                latest['MACD'] > latest['Signal']
+                macd_value > signal_value
             ):
                 execute_trade(ticker, "BUY", latest['Close'])
 
@@ -62,7 +65,7 @@ def analyze_for_trading(ticker):
             reason = []
             if latest['RSI'] < 45:
                 reason.append("RSI<45")
-            if latest['MACD'] < latest['Signal']:
+            if macd_value < signal_value:
                 reason.append("MACD Bearish")
             if latest['Close'] < latest['EMA_50']:
                 reason.append("Price<EMA50")
