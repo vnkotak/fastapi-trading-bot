@@ -65,6 +65,7 @@ def analyze_for_trading(ticker):
 
         elif last_trade['status'] == "OPEN":
             buy_price = float(last_trade['price'])
+            stop_loss_hit = latest['Close'] < buy_price * 0.97
             profit_pct = ((latest['Close'] - buy_price) / buy_price) * 100
 
             reason = []
@@ -76,6 +77,8 @@ def analyze_for_trading(ticker):
                 reason.append("Price<EMA50")
             if profit_pct >= 10:
                 reason.append("Profit>10%")
+            if stop_loss_hit:
+                reason.append("StopLoss>3%")
 
             if reason:
                 print(f"🔻 SELL {ticker} triggered due to: {', '.join(reason)}")
