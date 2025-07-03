@@ -33,13 +33,6 @@ def check_strategy_match(latest):
     cond4 = latest['Volume'] > VOLUME_MULTIPLIER * latest['Volume_avg']
     match_count = sum([cond1, cond2, cond3, cond4])
 
-    print(f"🔍 Strategy check for {latest.name if hasattr(latest, 'name') else 'stock'}:")
-    print(f"  Close={latest['Close']:.2f} > EMA_50={latest['EMA_50']:.2f} → {cond1}")
-    print(f"  RSI={latest['RSI']:.2f} > Threshold={RSI_THRESHOLD} → {cond2}")
-    print(f"  MACD={latest['MACD']:.2f} > Signal+Diff={latest['Signal']:.2f}+{MACD_SIGNAL_DIFF} → {cond3}")
-    print(f"  Volume={latest['Volume']} > {VOLUME_MULTIPLIER}×AvgVolume={latest['Volume_avg']:.0f} → {cond4}")
-
-
     if match_count == 4:
         return "full"
     elif match_count == 3:
