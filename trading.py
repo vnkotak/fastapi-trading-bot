@@ -32,6 +32,8 @@ def execute_trade(ticker, action, price):
     supabase.table("trades").insert(trade).execute()
     print(f"✅ {action} EXECUTED for {ticker} at {price}")
 
+from indicators import check_strategy_match
+
 def analyze_for_trading(ticker):
     print(f"\n🤖 Trading Analysis: {ticker}")
     try:
@@ -54,12 +56,11 @@ def analyze_for_trading(ticker):
         latest = df.iloc[-1]
         last_trade = get_last_trade(ticker)
 
-        print ({latest})
+        print(f"🔎 Latest values for {ticker}:\n{latest}")
+
         match_type = check_strategy_match(latest)
         print(f"📌 Match Type in trading.py for {ticker}: {match_type}")
         is_full_match = match_type == "full"
-
-        is_full_match = all([cond1, cond2, cond3, cond4])
 
         if not last_trade:
             if is_full_match:
@@ -85,7 +86,7 @@ def analyze_for_trading(ticker):
 
     except Exception as e:
         print(f"❌ Error in trading analysis for {ticker}: {e}")
-
+        
 def get_last_trade(ticker):
     response = supabase.table("trades").select("*").eq("ticker", ticker).order("timestamp", desc=True).limit(1).execute()
     if response.data:
@@ -103,54 +104,3 @@ def execute_trade(ticker, action, price):
     supabase.table("trades").insert(trade).execute()
     print(f"✅ {action} EXECUTED for {ticker} at {price}")
 
-def analyze_for_trading(ticker):
-    print(f"\n🤖 Trading Analysis: {ticker}")
-    try:
-        df = yf.download(ticker, period="3mo", interval="1d", progress=False)
-
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-        df.columns.name = None
-
-        if df.empty or any(col not in df.columns for col in ['Close', 'Volume']) or len(df) < 50:
-            print("⚠️ Missing data or columns")
-            return
-
-        df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
-        df['RSI'] = calculate_rsi(df['Close'])
-        df['MACD'], df['Signal'] = calculate_macd(df['Close'])
-        df['Volume_avg'] = df['Volume'].rolling(window=20).mean()
-
-        df.dropna(inplace=True)
-        latest = df.iloc[-1]
-        last_trade = get_last_trade(ticker)
-
-        if not last_trade:
-            # No previous trade, check for Buy
-            if (
-                latest['Close'] > latest['EMA_50'] and
-                latest['RSI'] > 55 and
-                latest['MACD'] > latest['Signal']
-            ):
-                execute_trade(ticker, "BUY", float(latest['Close']))
-
-        elif last_trade['status'] == "OPEN":
-            buy_price = float(last_trade['price'])
-            profit_pct = ((latest['Close'] - buy_price) / buy_price) * 100
-
-            reason = []
-            if latest['RSI'] < 45:
-                reason.append("RSI<45")
-            if latest['MACD'] < latest['Signal']:
-                reason.append("MACD Bearish")
-            if latest['Close'] < latest['EMA_50']:
-                reason.append("Price<EMA50")
-            if profit_pct >= 10:
-                reason.append("Profit>10%")
-
-            if reason:
-                print(f"🔻 SELL {ticker} triggered due to: {', '.join(reason)}")
-                execute_trade(ticker, "SELL", float(latest['Close']))
-
-    except Exception as e:
-        print(f"❌ Error in trading analysis for {ticker}: {e}")
