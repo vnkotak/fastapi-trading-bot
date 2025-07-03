@@ -4,7 +4,7 @@ import numpy as np
 import time
 import requests
 from indicators import calculate_rsi, calculate_macd, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, RSI_THRESHOLD, VOLUME_MULTIPLIER, MACD_SIGNAL_DIFF
-from indicators import check_strategy_match, send_Telegram
+from indicators import check_strategy_match, send_telegram
 
 
 # === DYNAMIC STOCK FETCHING ===
