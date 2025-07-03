@@ -25,3 +25,17 @@ def calculate_macd(series, fast=12, slow=26, signal=9):
     macd = ema_fast - ema_slow
     signal_line = macd.ewm(span=signal, adjust=False).mean()
     return macd, signal_line
+
+def check_strategy_match(latest):
+    cond1 = latest['Close'] > latest['EMA_50']
+    cond2 = latest['RSI'] > RSI_THRESHOLD
+    cond3 = latest['MACD'] > latest['Signal'] + MACD_SIGNAL_DIFF
+    cond4 = latest['Volume'] > VOLUME_MULTIPLIER * latest['Volume_avg']
+    match_count = sum([cond1, cond2, cond3, cond4])
+
+    if match_count == 4:
+        return "full"
+    elif match_count == 3:
+        return "partial"
+    else:
+        return None
