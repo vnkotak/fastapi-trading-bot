@@ -32,7 +32,7 @@ def execute_trade(ticker, action, price):
 def analyze_for_trading(ticker):
     print(f"\n🤖 Trading Analysis: {ticker}")
     try:
-        df = yf.download(ticker, period="3mo", interval="1d", progress=False)
+        df = yf.download(ticker, period="3mo", interval="1d", progress=False, auto_adjust=False)
 
         if df.empty or len(df) < 50:
             print("⚠️ Not enough data")
@@ -44,8 +44,8 @@ def analyze_for_trading(ticker):
         df.dropna(inplace=True)
 
         latest = df.iloc[-1]
-        macd_value = float(latest['MACD'])
-        signal_value = float(latest['Signal'])
+        macd_value = float(latest['MACD'].item()) if hasattr(latest['MACD'], 'item') else float(latest['MACD'])
+        signal_value = float(latest['Signal'].item()) if hasattr(latest['Signal'], 'item') else float(latest['Signal'])
 
         last_trade = get_last_trade(ticker)
 
