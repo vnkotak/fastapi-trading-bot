@@ -55,11 +55,8 @@ def analyze_for_trading(ticker):
         df.dropna(inplace=True)
         latest = df.iloc[-1]
         last_trade = get_last_trade(ticker)
-
-        print(f"🔎 Latest values for {ticker}:\n{latest}")
-
+        
         match_type = check_strategy_match(latest)
-        print(f"📌 Match Type in trading.py for {ticker}: {match_type}")
         is_full_match = match_type == "full"
 
         if not last_trade:
