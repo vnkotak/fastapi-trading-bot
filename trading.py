@@ -6,6 +6,7 @@ import os
 from indicators import calculate_rsi, calculate_macd
 # === Strategy Thresholds (Moved to indicators.py) ===
 from indicators import RSI_THRESHOLD, VOLUME_MULTIPLIER, MACD_SIGNAL_DIFF, SUPABASE_URL, SUPABASE_KEY
+from indicators import check_strategy_match
 
 # Initialize Supabase
 #SUPABASE_URL = "https://lfwgposvyckptsrjkkyx.supabase.co"  # e.g. "https://yourproject.supabase.co"
@@ -53,10 +54,9 @@ def analyze_for_trading(ticker):
         latest = df.iloc[-1]
         last_trade = get_last_trade(ticker)
 
-        cond1 = latest['Close'] > latest['EMA_50']
-        cond2 = latest['RSI'] > RSI_THRESHOLD
-        cond3 = latest['MACD'] > latest['Signal'] + MACD_SIGNAL_DIFF
-        cond4 = latest['Volume'] > VOLUME_MULTIPLIER * latest['Volume_avg']
+
+        match_type = check_strategy_match(latest)
+        is_full_match = match_type == "full"
 
         is_full_match = all([cond1, cond2, cond3, cond4])
 
@@ -84,10 +84,6 @@ def analyze_for_trading(ticker):
 
     except Exception as e:
         print(f"❌ Error in trading analysis for {ticker}: {e}")
-
-#SUPABASE_URL = os.environ.get("SUPABASE_URL")
-#SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_last_trade(ticker):
     response = supabase.table("trades").select("*").eq("ticker", ticker).order("timestamp", desc=True).limit(1).execute()
