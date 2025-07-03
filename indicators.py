@@ -1,4 +1,5 @@
 import pandas as pd
+import requests
 
 # === Strategy Thresholds ===
 RSI_THRESHOLD = 55
