@@ -59,7 +59,7 @@ def analyze_for_trading(ticker):
         match_type = check_strategy_match(latest)
         is_full_match = match_type == "full"
 
-        if not last_trade:
+        if not last_trade or last_trade['status'] == "CLOSED":
             if is_full_match:
                 execute_trade(ticker, "BUY", float(latest['Close']))
 
