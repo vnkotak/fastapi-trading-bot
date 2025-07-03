@@ -37,23 +37,6 @@ def fetch_nifty_100():
             "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "TORNTPHARM.NS"
         ]
 
-# === INDICATOR CALCULATIONS ===
-def calculate_rsi(series, window=14):
-    delta = series.diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    avg_gain = gain.rolling(window=window).mean()
-    avg_loss = loss.rolling(window=window).mean()
-    rs = avg_gain / avg_loss
-    return 100 - (100 / (1 + rs))
-
-def calculate_macd(series, slow=26, fast=12, signal=9):
-    exp1 = series.ewm(span=fast, adjust=False).mean()
-    exp2 = series.ewm(span=slow, adjust=False).mean()
-    macd = exp1 - exp2
-    signal_line = macd.ewm(span=signal, adjust=False).mean()
-    return macd, signal_line
-
 # === STRATEGY THRESHOLDS ===
 RSI_THRESHOLD = 60
 VOLUME_MULTIPLIER = 2.5
