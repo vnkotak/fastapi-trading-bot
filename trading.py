@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 from supabase import create_client, Client
 import os
-from indicators import calculate_rsi, calculate_macd
+from indicators import calculate_rsi, calculate_macd, send_telegram
 # === Strategy Thresholds (Moved to indicators.py) ===
 from indicators import RSI_THRESHOLD, VOLUME_MULTIPLIER, MACD_SIGNAL_DIFF, SUPABASE_URL, SUPABASE_KEY
 from indicators import check_strategy_match
@@ -100,4 +100,9 @@ def execute_trade(ticker, action, price):
     }
     supabase.table("trades").insert(trade).execute()
     print(f"✅ {action} EXECUTED for {ticker} at {price}")
+    
+    # ✅ Telegram alert
+    emoji = "🟢" if action == "BUY" else "🔴"
+    msg = f"{emoji} *{action} EXECUTED* for `{ticker}` at ₹{round(price, 2)}"
+    send_telegram(msg)
 
