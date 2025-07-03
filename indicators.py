@@ -12,6 +12,26 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 TELEGRAM_BOT_TOKEN = "7468828306:AAG6uOChh0SFLZwfhnNMdljQLHTcdPcQTa4"
 TELEGRAM_CHAT_ID = "980258123"
 
+# ------------------------------------------------------------------------------
+# Telegram Bot - Send Message
+# ------------------------------------------------------------------------------
+def send_telegram(message):
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        response = requests.post(url, json=payload)
+        if response.status_code == 200:
+            print("📬 Telegram alert sent.")
+        else:
+            print("❌ Telegram failed:", response.text)
+    except Exception as e:
+        print("⚠️ Telegram error:", e)
+
+
 def calculate_rsi(series, period=14):
     delta = series.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
