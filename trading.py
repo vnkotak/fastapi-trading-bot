@@ -54,8 +54,9 @@ def analyze_for_trading(ticker):
         latest = df.iloc[-1]
         last_trade = get_last_trade(ticker)
 
-
+        print (latest)
         match_type = check_strategy_match(latest)
+        print (match_type)
         is_full_match = match_type == "full"
 
         is_full_match = all([cond1, cond2, cond3, cond4])
