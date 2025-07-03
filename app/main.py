@@ -111,7 +111,7 @@ def webhook(data: dict):
 @app.get("/run-trades")
 def run_trading_strategy():
     results = []
-    tickers = fetch_nifty_100()[:30]  # test with 10 tickers first
+    tickers = fetch_nifty_100()
 
     for ticker in tickers:
         try:
