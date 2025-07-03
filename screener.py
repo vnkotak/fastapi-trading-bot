@@ -96,15 +96,7 @@ def analyze_stock(ticker):
 
         # Count how many of 4 conditions are True on the latest day
         match_type = check_strategy_match(latest)
-        
-        # Determine match type
-        if match_count == 4:
-            match_type = "full"
-        elif match_count == 3:
-            match_type = "partial"
-        else:
-            match_type = None  # ignore 0-2
-                
+                        
         if match_type is None:
             return None
 
