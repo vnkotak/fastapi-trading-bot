@@ -4,6 +4,7 @@ from fastapi import FastAPI, Form, HTTPException
 import requests
 import time
 from typing import Optional
+from trading import analyze_for_trading
 
 # 👇 Add screener import
 from screener import run_screener, analyze_stock, fetch_nifty_100
@@ -106,6 +107,20 @@ def webhook(data: dict):
     print("📩 Received webhook!", data)
     send_telegram("📩 Received a webhook event")
     return {"status": "success"}
+
+@app.get("/run-trades")
+def run_trading_strategy():
+    results = []
+    tickers = fetch_nifty_100()[:30]  # test with 10 tickers first
+
+    for ticker in tickers:
+        try:
+            analyze_for_trading(ticker)
+            results.append({"ticker": ticker, "status": "processed"})
+        except Exception as e:
+            results.append({"ticker": ticker, "status": f"error - {str(e)}"})
+
+    return {"message": "Trading logic executed", "results": results}
 
 # ------------------------------------------------------------------------------
 # FYERS (Optional) - Commented out for now
