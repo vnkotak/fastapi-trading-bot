@@ -169,7 +169,7 @@ def get_trades_with_summary(status="open"):
 }
 
 # Compute financial summary from filtered trades
-for t in filtered:
+ for t in filtered:
     buy_price = float(t["price"])
     final_price = float(t["sell_or_current_price"])
     profit = final_price - buy_price
