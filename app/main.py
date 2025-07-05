@@ -101,13 +101,14 @@ def run_trading_strategy():
     return {"message": "Trading logic executed", "results": results}
 
 
-@app.get("/trades-summary") 
-def get_trades_summary():
+@app.get("/trades-summary")
+def get_trades_summary(status: str = "open"):
     try:
-        result = get_trades_with_summary()
+        result = get_trades_with_summary(status)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ------------------------------------------------------------------------------
 # FYERS (Optional) - Commented out for now
