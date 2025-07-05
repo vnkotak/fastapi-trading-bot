@@ -156,7 +156,7 @@ def get_trades_with_summary(status="open"):
         filtered = processed
 
     # 📊 Calculate stats based only on filtered trades
-summary = {
+    summary = {
     "total_invested": 0,
     "current_value": 0,
     "profit": 0,
