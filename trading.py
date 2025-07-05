@@ -113,7 +113,6 @@ def get_trades_with_summary(status="open"):
     response = supabase.table("trades").select("*").execute()
     all_trades = response.data
 
-    summary = {"total_invested": 0, "current_value": 0, "profit": 0, "profit_pct": 0}
     processed = []
 
     buy_trades = [t for t in all_trades if t["action"] == "BUY"]
@@ -121,9 +120,8 @@ def get_trades_with_summary(status="open"):
     for trade in buy_trades:
         current_price = None
         sell_price = None
-        profit = 0
 
-        # Try to find matching sell trade regardless of filtering
+        # Look for matching sell trade
         sell = next(
             (s for s in all_trades if s["action"] == "SELL" and s["ticker"] == trade["ticker"] and s["timestamp"] > trade["timestamp"]),
             None
@@ -133,7 +131,7 @@ def get_trades_with_summary(status="open"):
             sell_price = float(sell["price"])
             trade["status"] = "CLOSED"
         else:
-            # Fetch live price only if not already closed
+            # Fetch live price if no sell found
             df = yf.download(trade["ticker"], period="1d", interval="1d", progress=False)
             if not df.empty:
                 current_price = float(df["Close"].iloc[-1])
@@ -145,10 +143,6 @@ def get_trades_with_summary(status="open"):
             profit = final_price - buy_price
             profit_pct = (profit / buy_price) * 100
 
-            summary["total_invested"] += buy_price
-            summary["current_value"] += final_price
-            summary["profit"] += profit
-
             processed.append({
                 **trade,
                 "sell_or_current_price": round(final_price, 2),
@@ -156,11 +150,23 @@ def get_trades_with_summary(status="open"):
                 "profit_pct": round(profit_pct, 2),
             })
 
-    # Now filter processed list based on requested status
+    # 🔁 Apply status filter here
     if status in ["open", "closed"]:
-        processed = [t for t in processed if t["status"].lower() == status.lower()]
+        filtered = [t for t in processed if t["status"].lower() == status.lower()]
+    else:
+        filtered = processed
+
+    # 📊 Now calculate summary only for filtered trades
+    summary = {"total_invested": 0, "current_value": 0, "profit": 0, "profit_pct": 0}
+
+    for t in filtered:
+        buy_price = float(t["price"])
+        final_price = float(t["sell_or_current_price"])
+        summary["total_invested"] += buy_price
+        summary["current_value"] += final_price
+        summary["profit"] += (final_price - buy_price)
 
     if summary["total_invested"] > 0:
         summary["profit_pct"] = round((summary["profit"] / summary["total_invested"]) * 100, 2)
 
-    return {"summary": summary, "trades": processed}
+    return {"summary": summary, "trades": filtered}
