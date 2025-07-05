@@ -149,34 +149,41 @@ def get_trades_with_summary(status="open"):
                 "profit_pct": round(profit_pct, 2),
             })
 
-    # 🔁 Apply status filter
+    # 🔁 Apply status filter here
     if status in ["open", "closed"]:
         filtered = [t for t in processed if t["status"].lower() == status.lower()]
     else:
         filtered = processed
 
-    # 📊 Build Summary
-    total_invested = sum(float(t["price"]) for t in filtered)
-    current_value = sum(float(t["sell_or_current_price"]) for t in filtered)
-    total_profit = current_value - total_invested
-    profit_pct = round((total_profit / total_invested) * 100, 2) if total_invested > 0 else 0
-
-    closed_trades = [t for t in processed if t["status"] == "CLOSED"]
-    open_trades = [t for t in processed if t["status"] == "OPEN"]
-    winning_trades = [t for t in processed if t["profit"] > 0]
-    total_buy_trades = len(buy_trades)
-
+    # 📊 Calculate stats based only on filtered trades
     summary = {
-        "total_invested": round(total_invested, 2),
-        "current_value": round(current_value, 2),
-        "profit": round(total_profit, 2),
-        "profit_pct": profit_pct,
-        "total_trades": len(all_trades),
-        "total_buy_trades": total_buy_trades,
-        "open_trades": len(open_trades),
-        "closed_trades": len(closed_trades),
-        "winning_trades": len(winning_trades),
-        "winning_pct": round((len(winning_trades) / total_buy_trades) * 100, 2) if total_buy_trades else 0,
+        "total_invested": 0,
+        "current_value": 0,
+        "profit": 0,
+        "profit_pct": 0,
+        "total_buy_trades": len([t for t in filtered if t["action"] == "BUY"]),
+        "open_trades": len([t for t in filtered if t["status"] == "OPEN"]),
+        "closed_trades": len([t for t in filtered if t["status"] == "CLOSED"]),
+        "winning_trades": 0,
+        "winning_pct": 0
     }
+
+    for t in filtered:
+        buy_price = float(t["price"])
+        final_price = float(t["sell_or_current_price"])
+        profit = final_price - buy_price
+
+        summary["total_invested"] += buy_price
+        summary["current_value"] += final_price
+        summary["profit"] += profit
+
+        if profit > 0:
+            summary["winning_trades"] += 1
+
+    if summary["total_invested"] > 0:
+        summary["profit_pct"] = round((summary["profit"] / summary["total_invested"]) * 100, 2)
+
+    if summary["total_buy_trades"] > 0:
+        summary["winning_pct"] = round((summary["winning_trades"] / summary["total_buy_trades"]) * 100, 2)
 
     return {"summary": summary, "trades": filtered}
