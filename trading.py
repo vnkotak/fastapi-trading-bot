@@ -4,7 +4,7 @@ from datetime import datetime
 from supabase import create_client, Client
 import os
 from indicators import calculate_rsi, calculate_macd, send_telegram
-# === Strategy Thresholds (Moved to indicators.py) ===
+# == Strategy Thresholds (Moved to indicators.py) ===
 from indicators import RSI_THRESHOLD, VOLUME_MULTIPLIER, MACD_SIGNAL_DIFF, SUPABASE_URL, SUPABASE_KEY
 from indicators import check_strategy_match
 
@@ -30,7 +30,7 @@ def execute_trade(ticker, action, price):
         "status": "OPEN" if action == "BUY" else "CLOSED"
     }
     supabase.table("trades").insert(trade).execute()
-    print(f"✅ {action} EXECUTED for {ticker} at {price}")
+    print(f"✅ {action} EXECUTED - {ticker} at {price}")
 
 from indicators import check_strategy_match
 
