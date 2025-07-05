@@ -99,6 +99,16 @@ def run_trading_strategy():
             results.append({"ticker": ticker, "status": f"error - {str(e)}"})
 
     return {"message": "Trading logic executed", "results": results}
+from trading import get_trades_with_summary  # 👈 Import at the top
+
+
+@app.get("/trades-summary") 
+def get_trades_summary():
+    try:
+        result = get_trades_with_summary()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ------------------------------------------------------------------------------
 # FYERS (Optional) - Commented out for now
