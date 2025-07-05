@@ -110,43 +110,38 @@ def execute_trade(ticker, action, price):
     send_telegram(msg)
 
 def get_trades_with_summary(status="open"):
-    response = supabase.table("trades").select("*").order("timestamp").execute()
+    response = supabase.table("trades").select("*").execute()
     all_trades = response.data
 
-    # Separate BUY and SELL trades
-    buys = [t for t in all_trades if t["action"] == "BUY"]
-    sells = [t for t in all_trades if t["action"] == "SELL"]
-
-    matched_sells = set()
     summary = {"total_invested": 0, "current_value": 0, "profit": 0, "profit_pct": 0}
     processed = []
 
-    for buy in buys:
-        if status != "all" and buy["status"].lower() != status.lower():
-            continue
+    buy_trades = [t for t in all_trades if t["action"] == "BUY"]
 
-        buy_price = float(buy["price"])
-        final_price = None
-        ticker = buy["ticker"]
+    for trade in buy_trades:
+        current_price = None
+        sell_price = None
         profit = 0
 
-        if buy["status"] == "OPEN":
-            df = yf.download(ticker, period="1d", interval="1d", progress=False)
-            if not df.empty:
-                final_price = float(df["Close"].iloc[-1])
-        else:
-            # Find the first unmatched SELL for this ticker after the BUY
-            for sell in sells:
-                if (
-                    sell["ticker"] == ticker and
-                    sell["timestamp"] > buy["timestamp"] and
-                    sell["id"] not in matched_sells
-                ):
-                    final_price = float(sell["price"])
-                    matched_sells.add(sell["id"])
-                    break
+        # Try to find matching sell trade regardless of filtering
+        sell = next(
+            (s for s in all_trades if s["action"] == "SELL" and s["ticker"] == trade["ticker"] and s["timestamp"] > trade["timestamp"]),
+            None
+        )
 
-        if final_price is not None:
+        if sell:
+            sell_price = float(sell["price"])
+            trade["status"] = "CLOSED"
+        else:
+            # Fetch live price only if not already closed
+            df = yf.download(trade["ticker"], period="1d", interval="1d", progress=False)
+            if not df.empty:
+                current_price = float(df["Close"].iloc[-1])
+            trade["status"] = "OPEN"
+
+        final_price = sell_price or current_price
+        if final_price:
+            buy_price = float(trade["price"])
             profit = final_price - buy_price
             profit_pct = (profit / buy_price) * 100
 
@@ -155,11 +150,15 @@ def get_trades_with_summary(status="open"):
             summary["profit"] += profit
 
             processed.append({
-                **buy,
+                **trade,
                 "sell_or_current_price": round(final_price, 2),
                 "profit": round(profit, 2),
                 "profit_pct": round(profit_pct, 2),
             })
+
+    # Now filter processed list based on requested status
+    if status in ["open", "closed"]:
+        processed = [t for t in processed if t["status"].lower() == status.lower()]
 
     if summary["total_invested"] > 0:
         summary["profit_pct"] = round((summary["profit"] / summary["total_invested"]) * 100, 2)
