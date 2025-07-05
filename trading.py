@@ -113,19 +113,21 @@ def get_trades_with_summary(status="open"):
     response = supabase.table("trades").select("*").order("timestamp").execute()
     all_trades = response.data
 
-    # Filter only based on final BUY status
-    if status in ["open", "closed"]:
-        buy_trades = [t for t in all_trades if t["action"] == "BUY" and t["status"].lower() == status.lower()]
-    else:
-        buy_trades = [t for t in all_trades if t["action"] == "BUY"]
+    # Separate BUY and SELL trades
+    buys = [t for t in all_trades if t["action"] == "BUY"]
+    sells = [t for t in all_trades if t["action"] == "SELL"]
 
+    matched_sells = set()
     summary = {"total_invested": 0, "current_value": 0, "profit": 0, "profit_pct": 0}
     processed = []
 
-    for buy in buy_trades:
-        ticker = buy["ticker"]
+    for buy in buys:
+        if status != "all" and buy["status"].lower() != status.lower():
+            continue
+
         buy_price = float(buy["price"])
         final_price = None
+        ticker = buy["ticker"]
         profit = 0
 
         if buy["status"] == "OPEN":
@@ -133,12 +135,16 @@ def get_trades_with_summary(status="open"):
             if not df.empty:
                 final_price = float(df["Close"].iloc[-1])
         else:
-            sell = next(
-                (t for t in all_trades if t["action"] == "SELL" and t["ticker"] == ticker and t["timestamp"] > buy["timestamp"]),
-                None
-            )
-            if sell:
-                final_price = float(sell["price"])
+            # Find the first unmatched SELL for this ticker after the BUY
+            for sell in sells:
+                if (
+                    sell["ticker"] == ticker and
+                    sell["timestamp"] > buy["timestamp"] and
+                    sell["id"] not in matched_sells
+                ):
+                    final_price = float(sell["price"])
+                    matched_sells.add(sell["id"])
+                    break
 
         if final_price is not None:
             profit = final_price - buy_price
