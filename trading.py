@@ -109,3 +109,53 @@ def execute_trade(ticker, action, price):
     msg = f"{emoji} *{action} EXECUTED* for `{ticker}` at ₹{round(price, 2)}"
     send_telegram(msg)
 
+def get_trades_with_summary(status="open"):
+    response = supabase.table("trades").select("*").execute()
+    trades = response.data
+
+    if status in ["open", "closed"]:
+        trades = [t for t in trades if t["status"].lower() == status.lower()]
+
+    summary = {"total_invested": 0, "current_value": 0, "profit": 0, "profit_pct": 0}
+    processed = []
+
+    for trade in trades:
+        if trade["action"] != "BUY":
+            continue
+
+        current_price = None
+        sell_price = None
+        profit = 0
+
+        if trade["status"] == "OPEN":
+            df = yf.download(trade["ticker"], period="1d", interval="1d", progress=False)
+            if not df.empty:
+                current_price = float(df["Close"].iloc[-1])
+        else:
+            sell = next((t for t in trades if t["action"] == "SELL" and t["ticker"] == trade["ticker"] and t["timestamp"] > trade["timestamp"]), None)
+            if sell:
+                sell_price = float(sell["price"])
+
+        final_price = sell_price or current_price
+        if final_price:
+            buy_price = float(trade["price"])
+            profit = final_price - buy_price
+            profit_pct = (profit / buy_price) * 100
+
+            summary["total_invested"] += buy_price
+            summary["current_value"] += final_price
+            summary["profit"] += profit
+
+            processed.append({
+                **trade,
+                "sell_or_current_price": round(final_price, 2),
+                "profit": round(profit, 2),
+                "profit_pct": round(profit_pct, 2),
+            })
+
+    if summary["total_invested"] > 0:
+        summary["profit_pct"] = round((summary["profit"] / summary["total_invested"]) * 100, 2)
+
+    return {"summary": summary, "trades": processed}
+
+
