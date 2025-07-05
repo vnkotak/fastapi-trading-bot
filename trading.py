@@ -110,35 +110,37 @@ def execute_trade(ticker, action, price):
     send_telegram(msg)
 
 def get_trades_with_summary(status="open"):
-    response = supabase.table("trades").select("*").execute()
-    trades = response.data
+    response = supabase.table("trades").select("*").order("timestamp").execute()
+    all_trades = response.data
 
+    # Filter only based on final BUY status
     if status in ["open", "closed"]:
-        trades = [t for t in trades if t["status"].lower() == status.lower()]
+        buy_trades = [t for t in all_trades if t["action"] == "BUY" and t["status"].lower() == status.lower()]
+    else:
+        buy_trades = [t for t in all_trades if t["action"] == "BUY"]
 
     summary = {"total_invested": 0, "current_value": 0, "profit": 0, "profit_pct": 0}
     processed = []
 
-    for trade in trades:
-        if trade["action"] != "BUY":
-            continue
-
-        current_price = None
-        sell_price = None
+    for buy in buy_trades:
+        ticker = buy["ticker"]
+        buy_price = float(buy["price"])
+        final_price = None
         profit = 0
 
-        if trade["status"] == "OPEN":
-            df = yf.download(trade["ticker"], period="1d", interval="1d", progress=False)
+        if buy["status"] == "OPEN":
+            df = yf.download(ticker, period="1d", interval="1d", progress=False)
             if not df.empty:
-                current_price = float(df["Close"].iloc[-1])
+                final_price = float(df["Close"].iloc[-1])
         else:
-            sell = next((t for t in trades if t["action"] == "SELL" and t["ticker"] == trade["ticker"] and t["timestamp"] > trade["timestamp"]), None)
+            sell = next(
+                (t for t in all_trades if t["action"] == "SELL" and t["ticker"] == ticker and t["timestamp"] > buy["timestamp"]),
+                None
+            )
             if sell:
-                sell_price = float(sell["price"])
+                final_price = float(sell["price"])
 
-        final_price = sell_price or current_price
-        if final_price:
-            buy_price = float(trade["price"])
+        if final_price is not None:
             profit = final_price - buy_price
             profit_pct = (profit / buy_price) * 100
 
@@ -147,7 +149,7 @@ def get_trades_with_summary(status="open"):
             summary["profit"] += profit
 
             processed.append({
-                **trade,
+                **buy,
                 "sell_or_current_price": round(final_price, 2),
                 "profit": round(profit, 2),
                 "profit_pct": round(profit_pct, 2),
@@ -157,5 +159,3 @@ def get_trades_with_summary(status="open"):
         summary["profit_pct"] = round((summary["profit"] / summary["total_invested"]) * 100, 2)
 
     return {"summary": summary, "trades": processed}
-
-
