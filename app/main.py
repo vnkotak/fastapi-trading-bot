@@ -4,7 +4,7 @@ from fastapi import FastAPI, Form, HTTPException
 import requests
 import time
 from typing import Optional
-from trading import analyze_for_trading
+from trading import analyze_for_trading, get_trades_with_summary
 from indicators import send_telegram
 
 #  Add screener import
@@ -99,7 +99,6 @@ def run_trading_strategy():
             results.append({"ticker": ticker, "status": f"error - {str(e)}"})
 
     return {"message": "Trading logic executed", "results": results}
-from trading import get_trades_with_summary  # 👈 Import at the top
 
 
 @app.get("/trades-summary") 
