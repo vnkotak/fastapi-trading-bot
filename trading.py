@@ -149,51 +149,48 @@ def get_trades_with_summary(status="open"):
                 "profit_pct": round(profit_pct, 2),
             })
 
-    # 🔁 Apply status filter here
+    # 🔁 Apply status filter
     if status in ["open", "closed"]:
         filtered = [t for t in processed if t["status"].lower() == status.lower()]
     else:
         filtered = processed
 
-    # 📊 Calculate stats based only on filtered trades
+    # 📊 Summary computation
     summary = {
-    "total_invested": 0,
-    "current_value": 0,
-    "profit": 0,
-    "profit_pct": 0,
-    "total_buy_trades": len(buy_trades),  # ✅ Total buys from all
-    "open_trades": len([t for t in processed if t["status"] == "OPEN"]),
-    "closed_trades": len([t for t in processed if t["status"] == "CLOSED"]),
-    "winning_trades": 0,
-    "winning_pct": 0
-}
+        "total_invested": 0,
+        "current_value": 0,
+        "profit": 0,
+        "profit_pct": 0,
+        "total_buy_trades": len(buy_trades),  # All-time buy trades
+        "open_trades": len([t for t in processed if t["status"] == "OPEN"]),
+        "closed_trades": len([t for t in processed if t["status"] == "CLOSED"]),
+        "winning_trades": 0,
+        "winning_pct": 0
+    }
 
-# Compute financial summary from filtered trades
- for t in filtered:
-    buy_price = float(t["price"])
-    final_price = float(t["sell_or_current_price"])
-    profit = final_price - buy_price
+    for t in filtered:
+        buy_price = float(t["price"])
+        final_price = float(t["sell_or_current_price"])
+        profit = final_price - buy_price
 
-    summary["total_invested"] += buy_price
-    summary["current_value"] += final_price
-    summary["profit"] += profit
+        summary["total_invested"] += buy_price
+        summary["current_value"] += final_price
+        summary["profit"] += profit
 
-# 🎯 Count filtered winning trades
-filtered_winning_trades = [t for t in filtered if t["profit"] > 0]
-summary["winning_trades"] = len(filtered_winning_trades)
+    # 🎯 Winning trades among filtered
+    filtered_winning_trades = [t for t in filtered if t["profit"] > 0]
+    summary["winning_trades"] = len(filtered_winning_trades)
 
-# 🎯 Compute % based on respective filtered category
-if status == "open":
-    total_considered = summary["open_trades"]
-elif status == "closed":
-    total_considered = summary["closed_trades"]
-else:
-    total_considered = summary["open_trades"] + summary["closed_trades"]
+    if status == "open":
+        total_considered = summary["open_trades"]
+    elif status == "closed":
+        total_considered = summary["closed_trades"]
+    else:
+        total_considered = summary["open_trades"] + summary["closed_trades"]
 
-summary["winning_pct"] = round((summary["winning_trades"] / total_considered) * 100, 2) if total_considered > 0 else 0
+    summary["winning_pct"] = round((summary["winning_trades"] / total_considered) * 100, 2) if total_considered > 0 else 0
 
-# 📈 Profit percentage overall
-if summary["total_invested"] > 0:
-    summary["profit_pct"] = round((summary["profit"] / summary["total_invested"]) * 100, 2)
+    if summary["total_invested"] > 0:
+        summary["profit_pct"] = round((summary["profit"] / summary["total_invested"]) * 100, 2)
 
-return {"summary": summary, "trades": filtered}
+    return {"summary": summary, "trades": filtered}
