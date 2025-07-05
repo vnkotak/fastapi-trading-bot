@@ -161,7 +161,7 @@ def get_trades_with_summary(status="open"):
         "current_value": 0,
         "profit": 0,
         "profit_pct": 0,
-        "total_buy_trades": len([t for t in filtered if t["action"] == "BUY"]),
+        "total_buy_trades": len(buy_trades),
         "open_trades": len([t for t in filtered if t["status"] == "OPEN"]),
         "closed_trades": len([t for t in filtered if t["status"] == "CLOSED"]),
         "winning_trades": 0,
