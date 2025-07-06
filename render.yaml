@@ -3,7 +3,7 @@ services:
     name: fastapi-trading-bot
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --log-level debug --reload
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port 10000
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
