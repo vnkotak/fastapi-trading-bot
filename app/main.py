@@ -3,11 +3,10 @@
 from fastapi import FastAPI, Form, HTTPException
 import requests
 import time
+import asyncio
 from typing import Optional
 from trading import analyze_for_trading, get_trades_with_summary
 from indicators import send_telegram
-
-#  Add screener import
 from screener import run_screener, analyze_stock, fetch_nifty_100
 from fastapi.middleware.cors import CORSMiddleware
 print("✅ main.py loaded")
@@ -24,22 +23,16 @@ app.add_middleware(
 )
 
 # ------------------------------------------------------------------------------
-# YOUR CREDENTIALS HERE
+# Constants
 # ------------------------------------------------------------------------------
-#SUPABASE_URL = "https://lfwgposvyckptsrjkkyx.supabase.co"  # e.g. "https://yourproject.supabase.co"
-#SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxmd2dwb3N2eWNrcHRzcmpra3l4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTg0MjI3MSwiZXhwIjoyMDY1NDE4MjcxfQ.7Pjsw_HpyE5RHHFshsRT3Ibpn1b6N4CO3F4rIw_GSvc"
-
-# === STRATEGY THRESHOLDS ===
-#RSI_THRESHOLD = 60
-#VOLUME_MULTIPLIER = 2.5
-#MACD_SIGNAL_DIFF = 1.0
+RSI_THRESHOLD = 60
+VOLUME_MULTIPLIER = 2.5
+MACD_SIGNAL_DIFF = 1.0
 
 # ------------------------------------------------------------------------------
-# API Endpoints
+# Helper for Screener Data (Non-blocking)
 # ------------------------------------------------------------------------------
-
-@app.get("/screener-data")
-def screener_data():
+def generate_screener_data():
     full_matches = []
 
     tickers = fetch_nifty_100()
@@ -62,31 +55,43 @@ def screener_data():
 
     return {"stocks": full_matches}
 
+# ------------------------------------------------------------------------------
+# API Endpoints
+# ------------------------------------------------------------------------------
+
+@app.get("/screener-data")
+async def screener_data():
+    return await asyncio.to_thread(generate_screener_data)
+
+
 @app.get("/")
 def root():
     send_telegram("🚀 FastAPI has been deployed and is live.")
     return {"message": "✅ FastAPI is running. Use /run-screener or /webhook as needed."}
+
 
 @app.get("/run-screener")
 def trigger_screener():
     run_screener()
     return {"status": "✅ Screener executed. Check Telegram for results."}
 
+
 @app.get("/screener-meta")
-def screener_meta():
-    tickers = fetch_nifty_100()  # You can hardcode or load from a JSON/CSV
-    return {"total": len(tickers), "tickers": tickers}
+async def screener_meta():
+    return await asyncio.to_thread(fetch_nifty_100)
+
 
 @app.get("/screener-stock")
-def screener_stock(ticker: str):
-    result = analyze_stock(ticker)
-    return result
+async def screener_stock(ticker: str):
+    return await asyncio.to_thread(analyze_stock, ticker)
+
 
 @app.post("/webhook")
 def webhook(data: dict):
     print("📩 Received webhook!", data)
     send_telegram("📩 Received a webhook event")
     return {"status": "success"}
+
 
 @app.get("/run-trades")
 def run_trading_strategy():
@@ -110,11 +115,3 @@ def get_trades_summary(status: str = "open"):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# ------------------------------------------------------------------------------
-# FYERS (Optional) - Commented out for now
-# ------------------------------------------------------------------------------
-# FYERS_API_KEY = "<FYERS_API_KEY>"
-# FYERS_SECRET = "<FYERS_SECRET>"
-# FYERS_REDIRECT_URI = "<FYERS_REDIRECT_URI>"
