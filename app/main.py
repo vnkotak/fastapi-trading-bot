@@ -10,8 +10,10 @@ from indicators import send_telegram
 #  Add screener import
 from screener import run_screener, analyze_stock, fetch_nifty_100
 from fastapi.middleware.cors import CORSMiddleware
+print("✅ main.py loaded")
 
 app = FastAPI()
+print("✅ FastAPI app created")
 
 app.add_middleware(
     CORSMiddleware,
