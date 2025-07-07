@@ -2,7 +2,7 @@ name: Run Trading Job Every Hour (Weekdays)
 
 on:
   schedule:
-    - cron: '30 4-10 * * 1-5'  # Every hour from 9:30 AM–3:30 PM IST
+    - cron: '45 4-10 * * 1-5'  # Every hour from 9:30 AM–3:30 PM IST
   workflow_dispatch:  # Manual trigger
 
 jobs:
