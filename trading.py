@@ -102,7 +102,7 @@ def analyze_for_trading(ticker):
             if reason:
                 reason_text = ", ".join(reason)
                 print(f"🔻 SELL {ticker} triggered due to: {reason_text}")
-                execute_trade(ticker, "SELL", float(latest['Close']), reason=reason_text)
+                execute_trade(ticker, "SELL", float(latest['Close']), quantity=last_trade.get("quantity", 1), reason=reason_text)
 
     except Exception as e:
         print(f"❌ Error in trading analysis for {ticker}: {e}")
