@@ -9,7 +9,6 @@ from trading import analyze_for_trading, get_trades_with_summary
 from indicators import send_telegram
 from screener import run_screener, analyze_stock, fetch_nifty_100
 from fastapi.middleware.cors import CORSMiddleware
-print("✅ main.py loaded")
 
 app = FastAPI()
 print("✅ FastAPI app created")
@@ -78,6 +77,7 @@ def trigger_screener():
 
 @app.get("/screener-meta")
 async def screener_meta():
+    print(f"🔍 Fetching screener data for {ticker}")
     return await asyncio.to_thread(fetch_nifty_100)
 
 
