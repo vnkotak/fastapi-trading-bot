@@ -78,8 +78,8 @@ def trigger_screener():
 @app.get("/screener-meta")
 async def screener_meta():
     print(f"🔍 Screener Meta Initiated")
-    return await asyncio.to_thread(fetch_nifty_100)
-
+    tickers = await asyncio.to_thread(fetch_nifty_100)
+    return {"tickers": tickers}
 
 @app.get("/screener-stock")
 async def screener_stock(ticker: str):
