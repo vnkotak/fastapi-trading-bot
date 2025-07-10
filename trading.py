@@ -4,8 +4,8 @@ from datetime import datetime
 from supabase import create_client, Client
 import os
 from indicators import calculate_rsi, calculate_macd, send_telegram
-from indicators import check_strategy_match
 from indicators import RSI_THRESHOLD, VOLUME_MULTIPLIER, MACD_SIGNAL_DIFF, SUPABASE_URL, SUPABASE_KEY
+from indicators import check_strategy_match
 
 # Initialize Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -102,7 +102,7 @@ def analyze_for_trading(ticker):
             if reason:
                 reason_text = ", ".join(reason)
                 print(f"🔻 SELL {ticker} triggered due to: {reason_text}")
-                execute_trade(ticker, "SELL", float(latest['Close']), quantity=last_trade.get("quantity", 1), reason=reason_text)
+                execute_trade(ticker, "SELL", float(latest['Close']), reason=reason_text)
 
     except Exception as e:
         print(f"❌ Error in trading analysis for {ticker}: {e}")
@@ -117,6 +117,7 @@ def get_trades_with_summary(status="open"):
     for trade in buy_trades:
         current_price = None
         sell_price = None
+        sell_reason = None
 
         sell = next(
             (s for s in all_trades if s["action"] == "SELL" and s["ticker"] == trade["ticker"] and s["timestamp"] > trade["timestamp"]),
@@ -125,6 +126,7 @@ def get_trades_with_summary(status="open"):
 
         if sell:
             sell_price = float(sell["price"])
+            sell_reason = sell.get("reason")
             trade["status"] = "CLOSED"
         else:
             df = yf.download(trade["ticker"], period="1d", interval="1d", progress=False)
@@ -146,6 +148,7 @@ def get_trades_with_summary(status="open"):
                 "current_value": round(current_value, 2),
                 "profit": round(profit, 2),
                 "profit_pct": round(profit_pct, 2),
+                "reason": sell_reason if trade["status"] == "CLOSED" else trade.get("reason")
             })
 
     if status in ["open", "closed"]:
