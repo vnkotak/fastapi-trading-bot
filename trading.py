@@ -156,6 +156,9 @@ def get_trades_with_summary(status="open"):
     else:
         filtered = processed
 
+    # Sort by latest date first
+    filtered.sort(key=lambda x: x["timestamp"], reverse=True)
+    
     summary = {
         "total_invested": 0,
         "current_value": 0,
