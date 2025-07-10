@@ -143,6 +143,7 @@ def get_trades_with_summary(status="open"):
             processed.append({
                 **trade,
                 "sell_or_current_price": round(final_price, 2),
+                "current_value": round(current_value, 2),
                 "profit": round(profit, 2),
                 "profit_pct": round(profit_pct, 2),
             })
@@ -166,7 +167,7 @@ def get_trades_with_summary(status="open"):
 
     for t in filtered:
         summary["total_invested"] += t.get("total_invested", float(t["price"]) * t.get("quantity", 1))
-        summary["current_value"] += t["sell_or_current_price"] * t.get("quantity", 1)
+        summary["current_value"] += t.get("current_value", t["sell_or_current_price"] * t.get("quantity", 1))
         summary["profit"] += t["profit"]
 
     filtered_winning_trades = [t for t in filtered if t["profit"] > 0]
