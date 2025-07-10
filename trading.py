@@ -4,8 +4,8 @@ from datetime import datetime
 from supabase import create_client, Client
 import os
 from indicators import calculate_rsi, calculate_macd, send_telegram
-from indicators import RSI_THRESHOLD, VOLUME_MULTIPLIER, MACD_SIGNAL_DIFF, SUPABASE_URL, SUPABASE_KEY
 from indicators import check_strategy_match
+from indicators import RSI_THRESHOLD, VOLUME_MULTIPLIER, MACD_SIGNAL_DIFF, SUPABASE_URL, SUPABASE_KEY
 
 # Initialize Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
