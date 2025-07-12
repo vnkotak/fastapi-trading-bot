@@ -1,4 +1,4 @@
-import yfinance as yf 
+import yfinance as yf
 import pandas as pd
 import numpy as np
 import time
@@ -6,7 +6,8 @@ import requests
 
 from indicators import (
     calculate_rsi, calculate_macd, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
-    RSI_THRESHOLD, VOLUME_MULTIPLIER, MACD_SIGNAL_DIFF, check_strategy_match, send_telegram
+    RSI_THRESHOLD, VOLUME_MULTIPLIER, MACD_SIGNAL_DIFF,
+    check_strategy_match, send_telegram
 )
 
 def fetch_nifty_100():
@@ -17,62 +18,60 @@ def fetch_nifty_100():
         return ["RELIANCE.NS", "TCS.NS"]
 
 def calculate_additional_indicators(df):
-    try:
-        print("👉 Starting indicator calculations")
-        print("📄 Initial DF head:\n", df.head())
+    print("👉 Starting indicator calculations")
 
-        df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
-        print("✅ EMA_50 added")
+    print("📄 Initial DF head:\n", df.head())
 
-        df['RSI'] = calculate_rsi(df['Close'])
-        print("✅ RSI added")
+    print("✅ EMA_50 added")
+    df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
 
-        df['MACD'], df['Signal'] = calculate_macd(df['Close'])
-        print("✅ MACD and Signal added")
+    print("✅ RSI added")
+    df['RSI'] = calculate_rsi(df['Close'])
 
-        df['MACD_Hist'] = df['MACD'] - df['Signal']
-        print("✅ MACD Histogram added")
+    print("✅ MACD and Signal added")
+    df['MACD'], df['Signal'] = calculate_macd(df['Close'])
 
-        df['Volume_avg'] = df['Volume'].rolling(window=20).mean()
-        print("✅ Volume average added")
+    print("✅ MACD Histogram added")
+    df['MACD_Hist'] = df['MACD'] - df['Signal']
 
-        high14 = df['High'].rolling(window=14).max()
-        low14 = df['Low'].rolling(window=14).min()
-        df['Williams_%R'] = -100 * ((high14 - df['Close']) / (high14 - low14))
-        print("✅ Williams %R added")
+    print("✅ Volume average added")
+    df['Volume_avg'] = df['Volume'].rolling(window=20).mean()
 
-        df['ATR'] = (df['High'] - df['Low']).rolling(window=14).mean()
-        print("✅ ATR added")
+    print("✅ Williams %R added")
+    high14 = df['High'].rolling(window=14).max()
+    low14 = df['Low'].rolling(window=14).min()
+    df['Williams_%R'] = -100 * ((high14 - df['Close']) / (high14 - low14))
 
-        df['Upper_BB'] = df['Close'].rolling(20).mean() + 2 * df['Close'].rolling(20).std()
-        df['Lower_BB'] = df['Close'].rolling(20).mean() - 2 * df['Close'].rolling(20).std()
-        print("✅ Bollinger Bands added")
+    print("✅ ATR added")
+    df['ATR'] = (df['High'] - df['Low']).rolling(window=14).mean()
 
-        # Optional: Enable once error fixed
-        # df['BB_Position'] = ((df['Close'] - df['Lower_BB']) / (df['Upper_BB'] - df['Lower_BB'])).clip(0, 1)
-        # print("✅ BB Position added")
+    print("✅ Bollinger Bands added")
+    df['Upper_BB'] = df['Close'].rolling(20).mean() + 2 * df['Close'].rolling(20).std()
+    df['Lower_BB'] = df['Close'].rolling(20).mean() - 2 * df['Close'].rolling(20).std()
+    df['BB_Position'] = ((df['Close'] - df['Lower_BB']) / (df['Upper_BB'] - df['Lower_BB'])).clip(0, 1)
 
-        df['Price_Change_1D'] = df['Close'].pct_change(1) * 100
-        df['Price_Change_3D'] = df['Close'].pct_change(3) * 100
-        df['Price_Change_5D'] = df['Close'].pct_change(5) * 100
-        print("✅ Price changes added")
+    print("✅ Price changes added")
+    df['Price_Change_1D'] = df['Close'].pct_change(1) * 100
+    df['Price_Change_3D'] = df['Close'].pct_change(3) * 100
+    df['Price_Change_5D'] = df['Close'].pct_change(5) * 100
 
-        df['Stoch_K'] = ((df['Close'] - df['Low'].rolling(14).min()) / (df['High'].rolling(14).max() - df['Low'].rolling(14).min())) * 100
-        df['Stoch_D'] = df['Stoch_K'].rolling(3).mean()
-        print("✅ Stochastic Oscillator added")
+    print("✅ Stochastic Oscillator added")
+    df['Stoch_K'] = ((df['Close'] - df['Low'].rolling(14).min()) / (df['High'].rolling(14).max() - df['Low'].rolling(14).min())) * 100
+    df['Stoch_D'] = df['Stoch_K'].rolling(3).mean()
 
-        return df
-
-    except Exception as e:
-        print(f"❌ Error during indicator calculation: {e}\nDF snapshot:\n{df.tail(3)}")
-        raise
+    return df
 
 def analyze_stock(ticker):
     print(f"\n📊 Analyzing: {ticker}")
     try:
         df = yf.download(ticker, period="3mo", interval="1d", progress=False)
 
-        if df.empty or any(col not in df.columns for col in ['Close', 'Volume', 'High', 'Low']) or len(df) < 50:
+        # ✅ Flatten MultiIndex columns if any
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        df.columns.name = None
+
+        if df.empty or any(col not in df.columns for col in ['Close', 'Volume']) or len(df) < 50:
             print("⚠️ Missing data or columns")
             return None
 
@@ -84,10 +83,12 @@ def analyze_stock(ticker):
             (df['MACD'] > df['Signal']) &
             (df['Volume'] > 1.2 * df['Volume_avg'])
         )
+
         df.dropna(inplace=True)
 
         latest = df.iloc[-1]
         match_type = check_strategy_match(latest)
+
         if match_type is None:
             return None
 
@@ -103,7 +104,7 @@ def analyze_stock(ticker):
             "volumeAvg": int(latest['Volume_avg']),
             "willr": round(latest['Williams_%R'], 2),
             "atr": round(latest['ATR'], 2),
-            # "bb_pos": round(latest['BB_Position'], 2),  # Commented out for debug
+            "bb_pos": round(latest['BB_Position'], 2),
             "priceChange1D": round(latest['Price_Change_1D'], 2),
             "priceChange3D": round(latest['Price_Change_3D'], 2),
             "priceChange5D": round(latest['Price_Change_5D'], 2),
@@ -149,8 +150,8 @@ def run_screener():
             f"RSI: {stock['rsi']} | Williams %R: {stock['willr']}\n"
             f"MACD: {stock['macd']} | Signal: {stock['signal']} | Hist: {stock['hist']}\n"
             f"Volume: {stock['volume']} | Avg: {stock['volumeAvg']}\n"
-            f"ATR: {stock['atr']}\n"
-            f"% Change 1D: {stock['priceChange1D']}%, 3D: {stock['priceChange3D']}%, 5D: {stock['priceChange5D']}%\n"
+            f"BB Pos: {stock['bb_pos']}  | ATR: {stock['atr']}\n"
+            f"% Change: 1D {stock['priceChange1D']}%, 3D {stock['priceChange3D']}%, 5D {stock['priceChange5D']}%\n"
             f"Stoch %K: {stock['stochK']} | %D: {stock['stochD']}\n"
         )
         send_telegram(msg)
