@@ -17,48 +17,76 @@ def fetch_nifty_100():
         return ["RELIANCE.NS", "TCS.NS"]
 
 def calculate_additional_indicators(df):
-    df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
-    df['RSI'] = calculate_rsi(df['Close'])
-    df['MACD'], df['Signal'] = calculate_macd(df['Close'])
-    df['MACD_Hist'] = df['MACD'] - df['Signal']
-    df['Volume_avg'] = df['Volume'].rolling(window=20).mean()
+    try:
+        print("👉 Starting indicator calculations")
+        print("📄 Initial DF head:\n", df.head())
 
-    high14 = df['High'].rolling(window=14).max()
-    low14 = df['Low'].rolling(window=14).min()
-    df['Williams_%R'] = -100 * ((high14 - df['Close']) / (high14 - low14))
+        df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
+        print("✅ EMA_50 added")
 
-    df['ATR'] = (df['High'] - df['Low']).rolling(window=14).mean()
-    df['Upper_BB'] = df['Close'].rolling(20).mean() + 2 * df['Close'].rolling(20).std()
-    df['Lower_BB'] = df['Close'].rolling(20).mean() - 2 * df['Close'].rolling(20).std()
+        df['RSI'] = calculate_rsi(df['Close'])
+        print("✅ RSI added")
 
-    df['Price_Change_1D'] = df['Close'].pct_change(1) * 100
-    df['Price_Change_3D'] = df['Close'].pct_change(3) * 100
-    df['Price_Change_5D'] = df['Close'].pct_change(5) * 100
+        df['MACD'], df['Signal'] = calculate_macd(df['Close'])
+        print("✅ MACD and Signal added")
 
-    df['Stoch_K'] = ((df['Close'] - df['Low'].rolling(14).min()) / (df['High'].rolling(14).max() - df['Low'].rolling(14).min())) * 100
-    df['Stoch_D'] = df['Stoch_K'].rolling(3).mean()
-    return df
+        df['MACD_Hist'] = df['MACD'] - df['Signal']
+        print("✅ MACD Histogram added")
+
+        df['Volume_avg'] = df['Volume'].rolling(window=20).mean()
+        print("✅ Volume average added")
+
+        high14 = df['High'].rolling(window=14).max()
+        low14 = df['Low'].rolling(window=14).min()
+        df['Williams_%R'] = -100 * ((high14 - df['Close']) / (high14 - low14))
+        print("✅ Williams %R added")
+
+        df['ATR'] = (df['High'] - df['Low']).rolling(window=14).mean()
+        print("✅ ATR added")
+
+        df['Upper_BB'] = df['Close'].rolling(20).mean() + 2 * df['Close'].rolling(20).std()
+        df['Lower_BB'] = df['Close'].rolling(20).mean() - 2 * df['Close'].rolling(20).std()
+        print("✅ Bollinger Bands added")
+
+        # Optional: Enable once error fixed
+        # df['BB_Position'] = ((df['Close'] - df['Lower_BB']) / (df['Upper_BB'] - df['Lower_BB'])).clip(0, 1)
+        # print("✅ BB Position added")
+
+        df['Price_Change_1D'] = df['Close'].pct_change(1) * 100
+        df['Price_Change_3D'] = df['Close'].pct_change(3) * 100
+        df['Price_Change_5D'] = df['Close'].pct_change(5) * 100
+        print("✅ Price changes added")
+
+        df['Stoch_K'] = ((df['Close'] - df['Low'].rolling(14).min()) / (df['High'].rolling(14).max() - df['Low'].rolling(14).min())) * 100
+        df['Stoch_D'] = df['Stoch_K'].rolling(3).mean()
+        print("✅ Stochastic Oscillator added")
+
+        return df
+
+    except Exception as e:
+        print(f"❌ Error during indicator calculation: {e}\nDF snapshot:\n{df.tail(3)}")
+        raise
 
 def analyze_stock(ticker):
     print(f"\n📊 Analyzing: {ticker}")
     try:
         df = yf.download(ticker, period="3mo", interval="1d", progress=False)
 
-        if df.empty or any(col not in df.columns for col in ['Close', 'Volume']) or len(df) < 50:
+        if df.empty or any(col not in df.columns for col in ['Close', 'Volume', 'High', 'Low']) or len(df) < 50:
             print("⚠️ Missing data or columns")
             return None
 
         df = calculate_additional_indicators(df)
+
         df['Signal_Trigger'] = (
             (df['Close'] > df['EMA_50']) &
             (df['RSI'] > 55) &
-            (df['MACD'].fillna(0) > df['Signal'].fillna(0)) &
+            (df['MACD'] > df['Signal']) &
             (df['Volume'] > 1.2 * df['Volume_avg'])
         )
-
         df.dropna(inplace=True)
-        latest = df.iloc[-1]
 
+        latest = df.iloc[-1]
         match_type = check_strategy_match(latest)
         if match_type is None:
             return None
@@ -75,7 +103,7 @@ def analyze_stock(ticker):
             "volumeAvg": int(latest['Volume_avg']),
             "willr": round(latest['Williams_%R'], 2),
             "atr": round(latest['ATR'], 2),
-            "bb_pos": round(latest['BB_Position'], 2),
+            # "bb_pos": round(latest['BB_Position'], 2),  # Commented out for debug
             "priceChange1D": round(latest['Price_Change_1D'], 2),
             "priceChange3D": round(latest['Price_Change_3D'], 2),
             "priceChange5D": round(latest['Price_Change_5D'], 2),
@@ -121,7 +149,7 @@ def run_screener():
             f"RSI: {stock['rsi']} | Williams %R: {stock['willr']}\n"
             f"MACD: {stock['macd']} | Signal: {stock['signal']} | Hist: {stock['hist']}\n"
             f"Volume: {stock['volume']} | Avg: {stock['volumeAvg']}\n"
-            f"BB Pos: {stock['bb_pos']}  | ATR: {stock['atr']}\n"
+            f"ATR: {stock['atr']}\n"
             f"% Change 1D: {stock['priceChange1D']}%, 3D: {stock['priceChange3D']}%, 5D: {stock['priceChange5D']}%\n"
             f"Stoch %K: {stock['stochK']} | %D: {stock['stochD']}\n"
         )
