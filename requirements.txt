@@ -7,4 +7,5 @@ yfinance
 ta
 pandas
 supabase
-TA-Lib==0.4.28
+pandas-ta==0.3.14b0
+
