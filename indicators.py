@@ -1,6 +1,6 @@
 import pandas as pd
 import requests
-import talib  # New: TA-Lib for candlestick patterns
+import talib
 
 # === Strategy Thresholds ===
 RSI_THRESHOLD = 55
