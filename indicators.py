@@ -1,5 +1,6 @@
 import pandas as pd
 import requests
+import talib  # New: TA-Lib for candlestick patterns
 
 # === Strategy Thresholds ===
 RSI_THRESHOLD = 55
@@ -7,8 +8,9 @@ VOLUME_MULTIPLIER = 2.0
 MACD_SIGNAL_DIFF = 1.0
 
 # === Common Keys ===
-SUPABASE_URL = "https://lfwgposvyckptsrjkkyx.supabase.co"  # e.g. "https://yourproject.supabase.co"
+SUPABASE_URL = "https://lfwgposvyckptsrjkkyx.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxmd2dwb3N2eWNrcHRzcmpra3l4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTg0MjI3MSwiZXhwIjoyMDY1NDE4MjcxfQ.7Pjsw_HpyE5RHHFshsRT3Ibpn1b6N4CO3F4rIw_GSvc"
+
 # === TELEGRAM SETUP ===
 TELEGRAM_BOT_TOKEN = "7468828306:AAG6uOChh0SFLZwfhnNMdljQLHTcdPcQTa4"
 TELEGRAM_CHAT_ID = "980258123"
@@ -32,7 +34,9 @@ def send_telegram(message):
     except Exception as e:
         print("⚠️ Telegram error:", e)
 
-
+# ------------------------------------------------------------------------------
+# Technical Indicators
+# ------------------------------------------------------------------------------
 def calculate_rsi(series, period=14):
     delta = series.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
@@ -47,6 +51,9 @@ def calculate_macd(series, fast=12, slow=26, signal=9):
     signal_line = macd.ewm(span=signal, adjust=False).mean()
     return macd, signal_line
 
+# ------------------------------------------------------------------------------
+# Match Strategy
+# ------------------------------------------------------------------------------
 def check_strategy_match(latest):
     cond1 = latest['Close'] > latest['EMA_50']
     cond2 = latest['RSI'] > RSI_THRESHOLD
@@ -60,3 +67,25 @@ def check_strategy_match(latest):
         return "partial"
     else:
         return None
+
+# ------------------------------------------------------------------------------
+# Candle Pattern Detector (NEW)
+# ------------------------------------------------------------------------------
+def detect_candle_pattern(df):
+    try:
+        df['Candle_Pattern'] = 'None'
+        bullish_engulfing = talib.CDLENGULFING(df['Open'], df['High'], df['Low'], df['Close'])
+        hammer = talib.CDLHAMMER(df['Open'], df['High'], df['Low'], df['Close'])
+
+        latest_idx = df.index[-1]
+
+        if bullish_engulfing.iloc[-1] > 0:
+            df.at[latest_idx, 'Candle_Pattern'] = 'Bullish Engulfing'
+        elif hammer.iloc[-1] > 0:
+            df.at[latest_idx, 'Candle_Pattern'] = 'Hammer'
+
+        return df
+    except Exception as e:
+        print(f"⚠️ Candle detection failed: {e}")
+        df['Candle_Pattern'] = 'None'
+        return df
