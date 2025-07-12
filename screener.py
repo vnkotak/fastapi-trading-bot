@@ -32,7 +32,7 @@ def calculate_additional_indicators(df):
     df['ATR'] = (df['High'] - df['Low']).rolling(window=14).mean()
     df['Upper_BB'] = df['Close'].rolling(20).mean() + 2 * df['Close'].rolling(20).std()
     df['Lower_BB'] = df['Close'].rolling(20).mean() - 2 * df['Close'].rolling(20).std()
-    df['BB_Position'] = (df['Close'] - df['Lower_BB']) / (df['Upper_BB'] - df['Lower_BB']) * 100
+    df['BB_Position'] = ((df['Close'] - df['Lower_BB']) / (df['Upper_BB'] - df['Lower_BB'])).clip(0, 1)
 
     df['Price_Change_1D'] = df['Close'].pct_change(1) * 100
     df['Price_Change_3D'] = df['Close'].pct_change(3) * 100
