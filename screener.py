@@ -61,6 +61,9 @@ def analyze_stock(ticker):
             print("⚠️ Missing data or columns")
             return None
 
+        print(df.columns)
+        print("Full Data")
+        print(df.tail(10).to_string())
         df = calculate_additional_indicators(df)
         df['Signal_Trigger'] = (
             (df['Close'] > df['EMA_50']) &
