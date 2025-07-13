@@ -1,11 +1,12 @@
-ta-lib==0.4.28
-numpy>=1.24.0
-pandas
-pandas-ta
-yfinance
 fastapi
 uvicorn
 httpx
 python-dotenv
 requests
+yfinance
+ta
+pandas
 supabase
+pandas-ta==0.3.14b0
+numpy==1.21.4
+TA-Lib==0.4.0
