@@ -8,7 +8,7 @@ VOLUME_MULTIPLIER = 2.0
 MACD_SIGNAL_DIFF = 1.0
 STOCH_K_MAX = 80
 WILLR_MAX = -20
-SCORE_THRESHOLD = 5.0  # Min score to consider as Buy
+SCORE_THRESHOLD = 5.0  # Minimum score to qualify as Buy
 
 # === Common Keys ===
 SUPABASE_URL = "https://lfwgposvyckptsrjkkyx.supabase.co"
@@ -53,7 +53,7 @@ def calculate_macd(series, fast=12, slow=26, signal=9):
     return macd, signal_line
 
 # ------------------------------------------------------------------------------
-# Manual Candle Pattern Detection
+# Candle Pattern Detection (Manual)
 # ------------------------------------------------------------------------------
 def detect_candle_pattern(df):
     try:
@@ -87,6 +87,34 @@ def detect_candle_pattern(df):
     except Exception as e:
         print("⚠️ Candle pattern detection failed:", e)
         return "None"
+
+# ------------------------------------------------------------------------------
+# Shared Indicator Preparation Logic
+# ------------------------------------------------------------------------------
+def calculate_additional_indicators(df):
+    rolling_mean = df['Close'].rolling(window=20).mean()
+    rolling_std = df['Close'].rolling(window=20).std()
+
+    df['EMA_20'] = df['Close'].ewm(span=20, adjust=False).mean()
+    df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
+    df['RSI'] = calculate_rsi(df['Close'])
+    df['MACD'], df['Signal'] = calculate_macd(df['Close'])
+    df['MACD_Hist'] = df['MACD'] - df['Signal']
+    df['Volume_avg'] = df['Volume'].rolling(window=20).mean()
+    df['ATR'] = (df['High'] - df['Low']).rolling(window=14).mean()
+    df['Upper_BB'] = rolling_mean + 2 * rolling_std
+    df['Lower_BB'] = rolling_mean - 2 * rolling_std
+    df['BB_Position'] = ((df['Close'] - df['Lower_BB']) / (df['Upper_BB'] - df['Lower_BB'])).clip(0, 1)
+    df['Price_Change_1D'] = df['Close'].pct_change(1) * 100
+    df['Price_Change_3D'] = df['Close'].pct_change(3) * 100
+    df['Price_Change_5D'] = df['Close'].pct_change(5) * 100
+    df['Stoch_K'] = ((df['Close'] - df['Low'].rolling(14).min()) / 
+                     (df['High'].rolling(14).max() - df['Low'].rolling(14).min())) * 100
+    df['Stoch_D'] = df['Stoch_K'].rolling(3).mean()
+    df['WilliamsR'] = -100 * ((df['High'].rolling(14).max() - df['Close']) / 
+                              (df['High'].rolling(14).max() - df['Low'].rolling(14).min()))
+
+    return df
 
 # ------------------------------------------------------------------------------
 # Scoring-based Strategy Logic
