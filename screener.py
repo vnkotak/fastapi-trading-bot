@@ -56,7 +56,7 @@ def analyze_stock(ticker):
 
         if score < SCORE_THRESHOLD:
             return None
-
+        print(f"\n📊 Matched : {ticker}")
         return {
             "ticker": ticker,
             "close": round(latest['Close'], 2),
