@@ -1,17 +1,18 @@
 import pandas as pd
-import pandas_ta as ta
 import requests
 
 # === Strategy Thresholds ===
-RSI_THRESHOLD = 55
+RSI_THRESHOLD_MIN = 45
+RSI_THRESHOLD_MAX = 65
 VOLUME_MULTIPLIER = 2.0
 MACD_SIGNAL_DIFF = 1.0
+STOCH_K_MAX = 80
+WILLR_MAX = -20
+SCORE_THRESHOLD = 5.0  # Min score to consider as Buy
 
 # === Common Keys ===
 SUPABASE_URL = "https://lfwgposvyckptsrjkkyx.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-
-# === TELEGRAM SETUP ===
 TELEGRAM_BOT_TOKEN = "7468828306:AAG6uOChh0SFLZwfhnNMdljQLHTcdPcQTa4"
 TELEGRAM_CHAT_ID = "980258123"
 
@@ -35,12 +36,12 @@ def send_telegram(message):
         print("⚠️ Telegram error:", e)
 
 # ------------------------------------------------------------------------------
-# Indicators
+# Indicator Calculations
 # ------------------------------------------------------------------------------
 def calculate_rsi(series, period=14):
     delta = series.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    gain = delta.where(delta > 0, 0).rolling(window=period).mean()
+    loss = -delta.where(delta < 0, 0).rolling(window=period).mean()
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
@@ -52,40 +53,82 @@ def calculate_macd(series, fast=12, slow=26, signal=9):
     return macd, signal_line
 
 # ------------------------------------------------------------------------------
-# Strategy Match Logic
-# ------------------------------------------------------------------------------
-def check_strategy_match(latest):
-    cond1 = latest['Close'] > latest['EMA_50']
-    cond2 = latest['RSI'] > RSI_THRESHOLD
-    cond3 = latest['MACD'] > latest['Signal'] + MACD_SIGNAL_DIFF
-    cond4 = latest['Volume'] > VOLUME_MULTIPLIER * latest['Volume_avg']
-    match_count = sum([cond1, cond2, cond3, cond4])
-
-    if match_count == 4:
-        return "full"
-    elif match_count == 3:
-        return "partial"
-    else:
-        return None
-
-# ------------------------------------------------------------------------------
-# Candle Pattern Detector using pandas-ta
+# Manual Candle Pattern Detection
 # ------------------------------------------------------------------------------
 def detect_candle_pattern(df):
     try:
-        patterns = {
-            "doji": ta.cdl_doji(df["Open"], df["High"], df["Low"], df["Close"]),
-            "hammer": ta.cdl_hammer(df["Open"], df["High"], df["Low"], df["Close"]),
-            "engulfing": ta.cdl_engulfing(df["Open"], df["High"], df["Low"], df["Close"]),
-        }
+        last = df.iloc[-1]
+        second_last = df.iloc[-2]
 
-        detected = []
-        for name, series in patterns.items():
-            if series is not None and not series.empty:
-                if series.iloc[-1] != 0:
-                    detected.append(name.capitalize())
+        patterns = []
 
-        return ", ".join(detected) if detected else "None"
+        # Doji
+        if abs(last['Close'] - last['Open']) < 0.1 * (last['High'] - last['Low']):
+            patterns.append("Doji")
+
+        # Hammer
+        body = abs(last['Close'] - last['Open'])
+        lower_wick = last['Open'] - last['Low'] if last['Close'] > last['Open'] else last['Close'] - last['Low']
+        upper_wick = last['High'] - max(last['Open'], last['Close'])
+        if lower_wick > 2 * body and upper_wick < body:
+            patterns.append("Hammer")
+
+        # Bullish Engulfing
+        if (
+            second_last['Close'] < second_last['Open'] and  # Red candle
+            last['Close'] > last['Open'] and               # Green candle
+            last['Close'] > second_last['Open'] and
+            last['Open'] < second_last['Close']
+        ):
+            patterns.append("Engulfing")
+
+        return ", ".join(patterns) if patterns else "None"
+
     except Exception as e:
         print("⚠️ Candle pattern detection failed:", e)
         return "None"
+
+# ------------------------------------------------------------------------------
+# Scoring-based Strategy Logic
+# ------------------------------------------------------------------------------
+def advanced_strategy_score(latest, previous):
+    score = 0.0
+
+    # 1. Price above EMA_20 and EMA_50
+    if latest['Close'] > latest['EMA_20'] > latest['EMA_50']:
+        score += 1.0
+
+    # 2. EMA_20 and EMA_50 rising
+    if latest['EMA_20'] > previous['EMA_20']:
+        score += 0.5
+    if latest['EMA_50'] > previous['EMA_50']:
+        score += 0.5
+
+    # 3. RSI between 45 and 65 and rising
+    if RSI_THRESHOLD_MIN <= latest['RSI'] <= RSI_THRESHOLD_MAX and latest['RSI'] > previous['RSI']:
+        score += 1.0
+
+    # 4. Volume spike and up-close day
+    if latest['Volume'] > VOLUME_MULTIPLIER * latest['Volume_avg'] and latest['Close'] > previous['Close']:
+        score += 1.0
+
+    # 5. MACD bullish crossover and histogram increasing
+    if latest['MACD'] > latest['Signal'] and latest['MACD_Hist'] > 0 and latest['MACD_Hist'] > previous['MACD_Hist']:
+        score += 1.0
+
+    # 6. Stochastic bullish crossover and not overbought
+    if (latest['Stoch_K'] > latest['Stoch_D'] and previous['Stoch_K'] < previous['Stoch_D'] and latest['Stoch_K'] < STOCH_K_MAX):
+        score += 0.5
+
+    # 7. Williams %R rising from lower zone
+    if (latest['WilliamsR'] > previous['WilliamsR'] and latest['WilliamsR'] < WILLR_MAX):
+        score += 0.5
+
+    # 8. Candle Pattern
+    pattern = latest.get("Candle", "None")
+    if "Hammer" in pattern or "Engulfing" in pattern:
+        score += 1.0
+    elif "Doji" in pattern:
+        score += 0.5
+
+    return score
