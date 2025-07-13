@@ -62,21 +62,18 @@ def detect_candle_pattern(df):
 
         patterns = []
 
-        # Doji
         if abs(last['Close'] - last['Open']) < 0.1 * (last['High'] - last['Low']):
             patterns.append("Doji")
 
-        # Hammer
         body = abs(last['Close'] - last['Open'])
         lower_wick = last['Open'] - last['Low'] if last['Close'] > last['Open'] else last['Close'] - last['Low']
         upper_wick = last['High'] - max(last['Open'], last['Close'])
         if lower_wick > 2 * body and upper_wick < body:
             patterns.append("Hammer")
 
-        # Bullish Engulfing
         if (
-            second_last['Close'] < second_last['Open'] and  # Red candle
-            last['Close'] > last['Open'] and               # Green candle
+            second_last['Close'] < second_last['Open'] and
+            last['Close'] > last['Open'] and
             last['Close'] > second_last['Open'] and
             last['Open'] < second_last['Close']
         ):
@@ -108,55 +105,56 @@ def calculate_additional_indicators(df):
     df['Price_Change_1D'] = df['Close'].pct_change(1) * 100
     df['Price_Change_3D'] = df['Close'].pct_change(3) * 100
     df['Price_Change_5D'] = df['Close'].pct_change(5) * 100
-    df['Stoch_K'] = ((df['Close'] - df['Low'].rolling(14).min()) / 
+    df['Stoch_K'] = ((df['Close'] - df['Low'].rolling(14).min()) /
                      (df['High'].rolling(14).max() - df['Low'].rolling(14).min())) * 100
     df['Stoch_D'] = df['Stoch_K'].rolling(3).mean()
-    df['WilliamsR'] = -100 * ((df['High'].rolling(14).max() - df['Close']) / 
+    df['WilliamsR'] = -100 * ((df['High'].rolling(14).max() - df['Close']) /
                               (df['High'].rolling(14).max() - df['Low'].rolling(14).min()))
 
     return df
 
 # ------------------------------------------------------------------------------
-# Scoring-based Strategy Logic
+# Scoring-based Strategy Logic (with indicator flags)
 # ------------------------------------------------------------------------------
 def advanced_strategy_score(latest, previous):
     score = 0.0
+    matched_indicators = []
 
-    # 1. Price above EMA_20 and EMA_50
     if latest['Close'] > latest['EMA_20'] > latest['EMA_50']:
         score += 1.0
+        matched_indicators.append("price")
 
-    # 2. EMA_20 and EMA_50 rising
     if latest['EMA_20'] > previous['EMA_20']:
         score += 0.5
     if latest['EMA_50'] > previous['EMA_50']:
         score += 0.5
 
-    # 3. RSI between 45 and 65 and rising
     if RSI_THRESHOLD_MIN <= latest['RSI'] <= RSI_THRESHOLD_MAX and latest['RSI'] > previous['RSI']:
         score += 1.0
+        matched_indicators.append("rsi")
 
-    # 4. Volume spike and up-close day
     if latest['Volume'] > VOLUME_MULTIPLIER * latest['Volume_avg'] and latest['Close'] > previous['Close']:
         score += 1.0
+        matched_indicators.append("volume")
 
-    # 5. MACD bullish crossover and histogram increasing
     if latest['MACD'] > latest['Signal'] and latest['MACD_Hist'] > 0 and latest['MACD_Hist'] > previous['MACD_Hist']:
         score += 1.0
+        matched_indicators.append("macd")
 
-    # 6. Stochastic bullish crossover and not overbought
-    if (latest['Stoch_K'] > latest['Stoch_D'] and previous['Stoch_K'] < previous['Stoch_D'] and latest['Stoch_K'] < STOCH_K_MAX):
+    if (latest['Stoch_K'] > latest['Stoch_D'] and
+        previous['Stoch_K'] < previous['Stoch_D'] and
+        latest['Stoch_K'] < STOCH_K_MAX):
         score += 0.5
+        matched_indicators.append("stoch")
 
-    # 7. Williams %R rising from lower zone
-    if (latest['WilliamsR'] > previous['WilliamsR'] and latest['WilliamsR'] < WILLR_MAX):
+    if latest['WilliamsR'] > previous['WilliamsR'] and latest['WilliamsR'] < WILLR_MAX:
         score += 0.5
+        matched_indicators.append("willr")
 
-    # 8. Candle Pattern
     pattern = latest.get("Candle", "None")
     if "Hammer" in pattern or "Engulfing" in pattern:
         score += 1.0
     elif "Doji" in pattern:
         score += 0.5
 
-    return score
+    return score, matched_indicators
