@@ -104,7 +104,7 @@ def analyze_stock(ticker):
             "stochD": round(latest['Stoch_D'], 2),
             "pattern": latest['Candle'],
             "score": round(score, 2),
-            "matched_indicators": matched_indicators
+            "matched_indicators": matched_indicators,
             "history": history_json
         }
 
