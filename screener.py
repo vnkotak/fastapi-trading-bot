@@ -1,14 +1,17 @@
 import yfinance as yf
 import pandas as pd
-import numpy as np
 import time
-import requests
 from indicators import (
-    calculate_rsi, calculate_macd, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
-    RSI_THRESHOLD, VOLUME_MULTIPLIER, MACD_SIGNAL_DIFF,
-    check_strategy_match, send_telegram, detect_candle_pattern
+    calculate_additional_indicators,
+    advanced_strategy_score,
+    send_telegram,
+    detect_candle_pattern,
+    SCORE_THRESHOLD
 )
 
+# ------------------------------------------------------------------
+# List of stocks (can later be dynamic from NSE CSV)
+# ------------------------------------------------------------------
 def fetch_nifty_100():
     try:
         return [
@@ -16,32 +19,12 @@ def fetch_nifty_100():
             "TORNTPHARM.NS", "PEL.NS", "GLENMARK.NS", "RAMCOCEM.NS", "MANKIND.NS", "HINDUNILVR.NS"
         ]
     except Exception as e:
-        print(f"⚠️ Could not fetch NIFTY 100 from NSE: {e}")
+        print(f"⚠️ Could not fetch NIFTY 100: {e}")
         return ["RELIANCE.NS", "TCS.NS"]
 
-def calculate_additional_indicators(df):
-    rolling_mean = df['Close'].rolling(window=20).mean()
-    rolling_std = df['Close'].rolling(window=20).std()
-
-    df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
-    df['RSI'] = calculate_rsi(df['Close'])
-    df['MACD'], df['Signal'] = calculate_macd(df['Close'])
-    df['MACD_Hist'] = df['MACD'] - df['Signal']
-    df['Volume_avg'] = df['Volume'].rolling(window=20).mean()
-    df['Williams_%R'] = -100 * ((df['High'].rolling(window=14).max() - df['Close']) / 
-                                (df['High'].rolling(window=14).max() - df['Low'].rolling(window=14).min()))
-    df['ATR'] = (df['High'] - df['Low']).rolling(window=14).mean()
-    df['Upper_BB'] = rolling_mean + 2 * rolling_std
-    df['Lower_BB'] = rolling_mean - 2 * rolling_std
-    df['BB_Position'] = ((df['Close'] - df['Lower_BB']) / (df['Upper_BB'] - df['Lower_BB'])).clip(0, 1)
-    df['Price_Change_1D'] = df['Close'].pct_change(1) * 100
-    df['Price_Change_3D'] = df['Close'].pct_change(3) * 100
-    df['Price_Change_5D'] = df['Close'].pct_change(5) * 100
-    df['Stoch_K'] = ((df['Close'] - df['Low'].rolling(14).min()) / 
-                     (df['High'].rolling(14).max() - df['Low'].rolling(14).min())) * 100
-    df['Stoch_D'] = df['Stoch_K'].rolling(3).mean()
-    return df
-
+# ------------------------------------------------------------------
+# Analyze a single stock
+# ------------------------------------------------------------------
 def analyze_stock(ticker):
     print(f"\n📊 Analyzing: {ticker}")
     try:
@@ -51,35 +34,28 @@ def analyze_stock(ticker):
             df.columns = df.columns.get_level_values(0)
         df.columns.name = None
 
-        df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
-        df['High'] = pd.to_numeric(df['High'], errors='coerce')
-        df['Low'] = pd.to_numeric(df['Low'], errors='coerce')
-        df['Open'] = pd.to_numeric(df['Open'], errors='coerce')
-        df['Volume'] = pd.to_numeric(df['Volume'], errors='coerce')
+        df = df[['Open', 'High', 'Low', 'Close', 'Volume']].dropna()
+        df = df.astype(float)
 
-        if df.empty or any(col not in df.columns for col in ['Close', 'Volume']) or len(df) < 50:
-            print("⚠️ Missing data or columns")
+        if df.empty or len(df) < 50:
+            print("⚠️ Not enough data.")
             return None
 
-        print(df.columns)
-        print("Full Data")
-        print(df.tail(10).to_string())
         df = calculate_additional_indicators(df)
-        df['Signal_Trigger'] = (
-            (df['Close'] > df['EMA_50']) &
-            (df['RSI'] > 55) &
-            (df['MACD'] > df['Signal']) &
-            (df['Volume'] > 1.2 * df['Volume_avg'])
-        )
-
         df.dropna(inplace=True)
+
+        # Attach candle pattern
+        df['Candle'] = "None"
+        df.at[df.index[-1], 'Candle'] = detect_candle_pattern(df)
+
         latest = df.iloc[-1]
+        previous = df.iloc[-2]
 
-        match_type = check_strategy_match(latest)
-        if match_type is None:
+        score = advanced_strategy_score(latest, previous)
+        print(f"🧠 {ticker} Strategy Score: {score:.2f}")
+
+        if score < SCORE_THRESHOLD:
             return None
-
-        candle_pattern = detect_candle_pattern(df)
 
         return {
             "ticker": ticker,
@@ -91,7 +67,7 @@ def analyze_stock(ticker):
             "hist": round(latest['MACD_Hist'], 2),
             "volume": int(latest['Volume']),
             "volumeAvg": int(latest['Volume_avg']),
-            "willr": round(latest['Williams_%R'], 2),
+            "willr": round(latest['WilliamsR'], 2),
             "atr": round(latest['ATR'], 2),
             "bb_pos": round(latest['BB_Position'], 2),
             "priceChange1D": round(latest['Price_Change_1D'], 2),
@@ -99,61 +75,43 @@ def analyze_stock(ticker):
             "priceChange5D": round(latest['Price_Change_5D'], 2),
             "stochK": round(latest['Stoch_K'], 2),
             "stochD": round(latest['Stoch_D'], 2),
-            "pattern": candle_pattern,
-            "match_type": match_type
+            "pattern": latest['Candle'],
+            "score": round(score, 2)
         }
 
     except Exception as e:
-        print(f"❌ Error for {ticker}: {e}")
+        print(f"❌ Error analyzing {ticker}: {e}")
         return None
 
+# ------------------------------------------------------------------
+# Run Screener
+# ------------------------------------------------------------------
 def run_screener():
-    full_matches = []
-    partial_matches = []
+    matches = []
     tickers = fetch_nifty_100()
 
     for ticker in tickers:
         stock = analyze_stock(ticker)
-        if not stock:
-            continue
-
-        latest = stock
-        conditions = [
-            latest["close"] > latest["ema"],
-            latest["rsi"] > RSI_THRESHOLD,
-            latest["macd"] > latest["signal"] + MACD_SIGNAL_DIFF,
-            latest["volume"] > VOLUME_MULTIPLIER * latest["volumeAvg"]
-        ]
-        matched_count = sum(conditions)
-
-        if matched_count == 4:
-            full_matches.append(stock)
-        elif matched_count == 3:
-            partial_matches.append(stock)
-
+        if stock:
+            matches.append(stock)
         time.sleep(0.2)
 
-    for stock in full_matches:
-        msg = (
-            f"🎯 *{stock['ticker']}*\n"
-            f"Price: ₹{stock['close']}  | EMA50: {stock['ema']}\n"
-            f"RSI: {stock['rsi']} | Williams %R: {stock['willr']}\n"
-            f"MACD: {stock['macd']} | Signal: {stock['signal']} | Hist: {stock['hist']}\n"
-            f"Volume: {stock['volume']} | Avg: {stock['volumeAvg']}\n"
-            f"BB Pos: {stock['bb_pos']}  | ATR: {stock['atr']}\n"
-            f"% Change: 1D {stock['priceChange1D']}%, 3D {stock['priceChange3D']}%, 5D {stock['priceChange5D']}%\n"
-            f"Stoch %K: {stock['stochK']} | %D: {stock['stochD']}\n"
-            f"Candle: {stock['pattern']}\n"
-        )
-        send_telegram(msg)
-
-    if not full_matches:
-        send_telegram("🚫 *No full-match stocks today.*")
-
-    if partial_matches:
-        partial_msg = "🟡 *Partial Matches (3/4)*:\n" + \
-            "\n".join([f"🔹 `{s['ticker']}`  | 💰 ₹{s['close']}  | RSI: {s['rsi']}" for s in partial_matches])
-        send_telegram(partial_msg)
+    if matches:
+        for stock in matches:
+            msg = (
+                f"🎯 *{stock['ticker']}*\n"
+                f"Price: ₹{stock['close']} | EMA50: {stock['ema']}\n"
+                f"RSI: {stock['rsi']} | Williams %R: {stock['willr']}\n"
+                f"MACD: {stock['macd']} | Signal: {stock['signal']} | Hist: {stock['hist']}\n"
+                f"Volume: {stock['volume']} | Avg: {stock['volumeAvg']}\n"
+                f"BB Pos: {stock['bb_pos']} | ATR: {stock['atr']}\n"
+                f"% Change: 1D {stock['priceChange1D']}%, 3D {stock['priceChange3D']}%, 5D {stock['priceChange5D']}%\n"
+                f"Stoch %K: {stock['stochK']} | %D: {stock['stochD']}\n"
+                f"Candle: {stock['pattern']} | Score: {stock['score']}\n"
+            )
+            send_telegram(msg)
+    else:
+        send_telegram("🚫 *No stocks matched advanced criteria today.*")
 
 if __name__ == "__main__":
     run_screener()
