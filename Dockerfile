@@ -1,22 +1,32 @@
-# Start with official Python image
 FROM python:3.10-slim
 
-# Install system dependencies for TA-Lib
+# Install system tools
 RUN apt-get update && apt-get install -y \
     build-essential \
-    libta-lib0 \
-    libta-lib-dev \
+    wget \
+    curl \
     gcc \
- && rm -rf /var/lib/apt/lists/*
+    make \
+    libffi-dev \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install TA-Lib from source
+RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
+    tar -xvzf ta-lib-0.4.0-src.tar.gz && \
+    cd ta-lib && \
+    ./configure --prefix=/usr && \
+    make && make install && \
+    cd .. && rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
 
 # Set working directory
 WORKDIR /app
 
-# Copy all files
+# Copy files
 COPY . .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Command to run your app
+# Run FastAPI app
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
