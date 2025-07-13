@@ -9,4 +9,3 @@ pandas
 supabase
 pandas-ta==0.3.14b0
 numpy==1.21.4
-TA-Lib==0.4.28
