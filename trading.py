@@ -3,9 +3,16 @@ import pandas as pd
 from datetime import datetime
 from supabase import create_client, Client
 import os
-from indicators import calculate_rsi, calculate_macd, send_telegram
-from indicators import RSI_THRESHOLD, VOLUME_MULTIPLIER, MACD_SIGNAL_DIFF, SUPABASE_URL, SUPABASE_KEY
-from indicators import check_strategy_match
+
+from indicators import (
+    calculate_additional_indicators,
+    advanced_strategy_score,
+    detect_candle_pattern,
+    send_telegram,
+    SCORE_THRESHOLD,
+    SUPABASE_URL,
+    SUPABASE_KEY
+)
 
 # Initialize Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -56,31 +63,36 @@ def analyze_for_trading(ticker):
             df.columns = df.columns.get_level_values(0)
         df.columns.name = None
 
-        if df.empty or any(col not in df.columns for col in ['Close', 'Volume']) or len(df) < 50:
-            print("⚠️ Missing data or columns")
+        df = df[['Open', 'High', 'Low', 'Close', 'Volume']].dropna()
+        df = df.astype(float)
+
+        if df.empty or len(df) < 50:
+            print("⚠️ Missing data or not enough candles.")
             return
 
-        df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
-        df['RSI'] = calculate_rsi(df['Close'])
-        df['MACD'], df['Signal'] = calculate_macd(df['Close'])
-        df['Volume_avg'] = df['Volume'].rolling(window=20).mean()
-
+        df = calculate_additional_indicators(df)
         df.dropna(inplace=True)
+
+        # Add Candle Pattern to latest row
+        df['Candle'] = "None"
+        df.at[df.index[-1], 'Candle'] = detect_candle_pattern(df)
+
         latest = df.iloc[-1]
+        previous = df.iloc[-2]
+        score = advanced_strategy_score(latest, previous)
+
+        print(f"🧠 {ticker} Score: {score:.2f}")
         last_trade = get_last_trade(ticker)
 
-        match_type = check_strategy_match(latest)
-        is_full_match = match_type == "full"
-
         if not last_trade or last_trade['status'] == "CLOSED":
-            if is_full_match:
+            if score >= SCORE_THRESHOLD:
                 MAX_INVEST_PER_TRADE = 5000
                 buy_price = float(latest['Close'])
                 quantity = max(1, int(MAX_INVEST_PER_TRADE // buy_price))
                 total_invested = round(quantity * buy_price, 2)
 
-                print(f"💰 Buying {quantity} units of {ticker} at ₹{buy_price:.2f} (Total: ₹{total_invested})")
-                execute_trade(ticker, "BUY", buy_price, quantity, total_invested)
+                reason = f"Score {score} ≥ {SCORE_THRESHOLD} | Pattern: {latest['Candle']}"
+                execute_trade(ticker, "BUY", buy_price, quantity, total_invested, reason)
 
         elif last_trade['status'] == "OPEN":
             buy_price = float(last_trade['price'])
@@ -156,9 +168,8 @@ def get_trades_with_summary(status="open"):
     else:
         filtered = processed
 
-    # Sort by latest date first
     filtered.sort(key=lambda x: x["timestamp"], reverse=True)
-    
+
     summary = {
         "total_invested": 0,
         "current_value": 0,
