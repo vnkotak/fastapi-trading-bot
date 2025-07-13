@@ -8,7 +8,7 @@ VOLUME_MULTIPLIER = 2.0
 MACD_SIGNAL_DIFF = 1.0
 STOCH_K_MAX = 80
 WILLR_MAX = -20
-SCORE_THRESHOLD = 3.9  # Minimum score to qualify as Buy
+SCORE_THRESHOLD = 4.9  # Minimum score to qualify as Buy
 
 # === Common Keys ===
 SUPABASE_URL = "https://lfwgposvyckptsrjkkyx.supabase.co"  # e.g. "https://yourproject.supabase.co"
