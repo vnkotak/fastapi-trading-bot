@@ -50,7 +50,7 @@ def analyze_stock(ticker):
         latest = df.iloc[-1]
         previous = df.iloc[-2]
 
-        score = advanced_strategy_score(latest, previous)
+        score, matched_indicators = advanced_strategy_score(latest, previous)
         print(f"🧠 {ticker} Strategy Score: {score:.2f}")
 
         if score < SCORE_THRESHOLD:
