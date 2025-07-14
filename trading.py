@@ -142,6 +142,8 @@ def get_trades_with_summary(status="open"):
         current_price = None
         sell_price = None
         sell_reason = None
+        sell_timestamp = None
+        days_held = None
 
         sell = next(
             (s for s in all_trades if s["action"] == "SELL" and s["ticker"] == trade["ticker"] and s["timestamp"] > trade["timestamp"]),
@@ -151,6 +153,11 @@ def get_trades_with_summary(status="open"):
         if sell:
             sell_price = float(sell["price"])
             sell_reason = sell.get("reason")
+            sell_timestamp = sell.get("timestamp")
+            days_held = (
+                (datetime.fromisoformat(sell_timestamp) - datetime.fromisoformat(trade["timestamp"]))
+                .days
+            )
             trade["status"] = "CLOSED"
         else:
             df = yf.download(trade["ticker"], period="1d", interval="1d", progress=False)
@@ -172,7 +179,9 @@ def get_trades_with_summary(status="open"):
                 "current_value": round(current_value, 2),
                 "profit": round(profit, 2),
                 "profit_pct": round(profit_pct, 2),
-                "reason": sell_reason if trade["status"] == "CLOSED" else trade.get("reason")
+                "reason": sell_reason if trade["status"] == "CLOSED" else trade.get("reason"),
+                "sell_timestamp": sell_timestamp,
+                "days_held": days_held
             })
 
     if status in ["open", "closed"]:
