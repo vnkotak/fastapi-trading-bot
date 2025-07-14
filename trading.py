@@ -1,6 +1,7 @@
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
+from dateutil.parser import parse as parse_datetime
 from supabase import create_client, Client
 import os
 
@@ -154,8 +155,17 @@ def get_trades_with_summary(status="open"):
             sell_price = float(sell["price"])
             sell_reason = sell.get("reason")
             sell_timestamp = sell.get("timestamp")
+            try:
+                buy_date = parse_datetime(trade["timestamp"])
+                sell_date = parse_datetime(sell_timestamp)
+            except Exception as e:
+                print(f"Invalid timestamp in {trade['ticker']}")
+                print("Buy", trade["timestamp"])
+                print("Sell", sell_timestamp)
+                raise e
+                
             days_held = (
-                (datetime.fromisoformat(sell_timestamp) - datetime.fromisoformat(trade["timestamp"]))
+                (sell_date - buy_date)
                 .days
             )
             trade["status"] = "CLOSED"
