@@ -23,7 +23,7 @@ def get_last_trade(ticker):
         return response.data[0]
     return None
 
-def execute_trade(ticker, action, price, quantity=1, total_invested=None, reason=None):
+def execute_trade(ticker, action, price, quantity=1, total_invested=None, reason=None, score=None):
     if total_invested is None:
         total_invested = round(price * quantity, 2)
 
@@ -39,6 +39,8 @@ def execute_trade(ticker, action, price, quantity=1, total_invested=None, reason
 
     if reason:
         trade["reason"] = reason
+    if score and action == "BUY":
+        trade["score"] = round(score, 2)
 
     supabase.table("trades").insert(trade).execute()
     print(f"✅ {action} EXECUTED for {ticker} at ₹{price:.2f} x {quantity} units (₹{total_invested})")
@@ -73,7 +75,6 @@ def analyze_for_trading(ticker):
         df = calculate_additional_indicators(df)
         df.dropna(inplace=True)
 
-        # Add Candle Pattern to latest row
         df['Candle'] = "None"
         df.at[df.index[-1], 'Candle'] = detect_candle_pattern(df)
 
@@ -92,29 +93,40 @@ def analyze_for_trading(ticker):
                 total_invested = round(quantity * buy_price, 2)
 
                 reason = f"Score {score} ≥ {SCORE_THRESHOLD} | Pattern: {latest['Candle']}"
-                execute_trade(ticker, "BUY", buy_price, quantity, total_invested, reason)
+                execute_trade(ticker, "BUY", buy_price, quantity, total_invested, reason, score)
 
         elif last_trade['status'] == "OPEN":
             buy_price = float(last_trade['price'])
             stop_loss_hit = latest['Close'] < buy_price * 0.97
             profit_pct = ((latest['Close'] - buy_price) / buy_price) * 100
 
-            reason = []
-            if latest['RSI'] < 45:
-                reason.append("RSI<45")
-            if latest['MACD'] < latest['Signal']:
-                reason.append("MACD Bearish")
-            if latest['Close'] < latest['EMA_50']:
-                reason.append("Price<EMA50")
-            if profit_pct >= 10:
-                reason.append("Profit>10%")
-            if stop_loss_hit:
-                reason.append("StopLoss>3%")
+            sell_reasons = []
+            indicator_triggers = []
 
-            if reason:
-                reason_text = ", ".join(reason)
+            if latest['RSI'] < 45:
+                indicator_triggers.append("RSI<45")
+            if latest['MACD'] < latest['Signal']:
+                indicator_triggers.append("MACD Bearish")
+            if latest['Close'] < latest['EMA_50']:
+                indicator_triggers.append("Price<EMA50")
+
+            if len(indicator_triggers) >= 2:
+                sell_reasons.extend(indicator_triggers)
+            if profit_pct >= 10:
+                sell_reasons.append("Profit>10%")
+            if stop_loss_hit:
+                sell_reasons.append("StopLoss>3%")
+
+            if sell_reasons:
+                reason_text = ", ".join(sell_reasons)
                 print(f"🔻 SELL {ticker} triggered due to: {reason_text}")
-                execute_trade(ticker, "SELL", float(latest['Close']), reason=reason_text)
+                execute_trade(
+                    ticker,
+                    "SELL",
+                    float(latest['Close']),
+                    quantity=int(last_trade.get("quantity", 1)),
+                    reason=reason_text
+                )
 
     except Exception as e:
         print(f"❌ Error in trading analysis for {ticker}: {e}")
