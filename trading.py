@@ -4,6 +4,7 @@ from datetime import datetime
 from dateutil.parser import parse as parse_datetime
 from supabase import create_client, Client
 import os
+import pytz
 
 from indicators import (
     calculate_additional_indicators,
@@ -23,6 +24,17 @@ def get_last_trade(ticker):
     if response.data:
         return response.data[0]
     return None
+
+def get_current_price(ticker):
+    df = yf.download(ticker, period="1d", interval="1d", progress=False)
+    if df.empty:
+        return None
+    return float(df["Close"].iloc[-1])
+
+def is_market_closed():
+    india_tz = pytz.timezone("Asia/Kolkata")
+    now_ist = datetime.now(india_tz)
+    return now_ist.hour > 15 or (now_ist.hour == 15 and now_ist.minute > 15)
 
 def execute_trade(ticker, action, price, quantity=1, total_invested=None, reason=None, score=None):
     if total_invested is None:
@@ -59,6 +71,11 @@ def execute_trade(ticker, action, price, quantity=1, total_invested=None, reason
 
 def analyze_for_trading(ticker):
     print(f"\n🤖 Trading Analysis: {ticker}")
+
+    if is_market_closed():
+        print("⏰ Market closed — skipping trade for", ticker)
+        return
+
     try:
         df = yf.download(ticker, period="3mo", interval="1d", progress=False)
 
@@ -88,18 +105,39 @@ def analyze_for_trading(ticker):
 
         if not last_trade or last_trade['status'] == "CLOSED":
             if score >= SCORE_THRESHOLD:
-                MAX_INVEST_PER_TRADE = 5000
-                buy_price = float(latest['Close'])
-                quantity = max(1, int(MAX_INVEST_PER_TRADE // buy_price))
-                total_invested = round(quantity * buy_price, 2)
+                latest_price = float(latest['Close'])
+                current_price = get_current_price(ticker)
+                if not current_price:
+                    print("❌ Could not fetch fresh price.")
+                    return
 
+                price_diff_pct = abs(latest_price - current_price) / latest_price * 100
+                if price_diff_pct > 5:
+                    print(f"❌ BUY price deviation too high: {price_diff_pct:.2f}% — skipping {ticker}")
+                    return
+
+                MAX_INVEST_PER_TRADE = 5000
+                quantity = max(1, int(MAX_INVEST_PER_TRADE // current_price))
+                total_invested = round(quantity * current_price, 2)
                 reason = f"Score {score} ≥ {SCORE_THRESHOLD} | Pattern: {latest['Candle']}"
-                execute_trade(ticker, "BUY", buy_price, quantity, total_invested, reason, score)
+
+                print(f"➡️ Executing BUY: {ticker} at ₹{current_price} | Qty: {quantity}")
+                execute_trade(ticker, "BUY", current_price, quantity, total_invested, reason, score)
 
         elif last_trade['status'] == "OPEN":
             buy_price = float(last_trade['price'])
-            stop_loss_hit = latest['Close'] < buy_price * 0.97
-            profit_pct = ((latest['Close'] - buy_price) / buy_price) * 100
+            current_price = get_current_price(ticker)
+            if not current_price:
+                print("❌ Could not fetch fresh price for SELL.")
+                return
+
+            price_variation_pct = abs(current_price - buy_price) / buy_price * 100
+            if price_variation_pct > 50:
+                print(f"❌ SELL price variation > 50%: {price_variation_pct:.2f}% — skipping")
+                return
+
+            stop_loss_hit = current_price < buy_price * 0.97
+            profit_pct = ((current_price - buy_price) / buy_price) * 100
 
             sell_reasons = []
             indicator_triggers = []
@@ -120,14 +158,9 @@ def analyze_for_trading(ticker):
 
             if sell_reasons:
                 reason_text = ", ".join(sell_reasons)
-                print(f"🔻 SELL {ticker} triggered due to: {reason_text}")
-                execute_trade(
-                    ticker,
-                    "SELL",
-                    float(latest['Close']),
-                    quantity=int(last_trade.get("quantity", 1)),
-                    reason=reason_text
-                )
+                quantity = int(last_trade.get("quantity", 1))
+                print(f"➡️ Executing SELL: {ticker} at ₹{current_price} | Qty: {quantity} | Reason: {reason_text}")
+                execute_trade(ticker, "SELL", current_price, quantity=quantity, reason=reason_text)
 
     except Exception as e:
         print(f"❌ Error in trading analysis for {ticker}: {e}")
@@ -160,19 +193,12 @@ def get_trades_with_summary(status="open"):
                 sell_date = parse_datetime(sell_timestamp)
             except Exception as e:
                 print(f"Invalid timestamp in {trade['ticker']}")
-                print("Buy", trade["timestamp"])
-                print("Sell", sell_timestamp)
                 raise e
-                
-            days_held = (
-                (sell_date - buy_date)
-                .days
-            )
+
+            days_held = (sell_date - buy_date).days
             trade["status"] = "CLOSED"
         else:
-            df = yf.download(trade["ticker"], period="1d", interval="1d", progress=False)
-            if not df.empty:
-                current_price = float(df["Close"].iloc[-1])
+            current_price = get_current_price(trade["ticker"])
             trade["status"] = "OPEN"
 
         final_price = sell_price or current_price
@@ -199,7 +225,7 @@ def get_trades_with_summary(status="open"):
     else:
         filtered = processed
 
-    filtered.sort(key=lambda x: x["timestamp"], reverse=True)
+    filtered.sort(key=lambda x: x["sell_timestamp"] if status == "closed" else x["timestamp"], reverse=True)
 
     summary = {
         "total_invested": 0,
