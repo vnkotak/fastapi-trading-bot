@@ -7,7 +7,7 @@ import asyncio
 from typing import Optional
 from trading import analyze_for_trading, get_trades_with_summary
 from indicators import send_telegram
-from screener import run_screener, analyze_stock, fetch_nifty_100
+from screener import run_screener, analyze_stock, fetch_nifty_stocks
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -34,7 +34,7 @@ MACD_SIGNAL_DIFF = 1.0
 def generate_screener_data():
     full_matches = []
 
-    tickers = fetch_nifty_100()
+    tickers = fetch_nifty_stocks()
     for ticker in tickers:
         stock = analyze_stock(ticker)
         if not stock:
@@ -78,7 +78,7 @@ def trigger_screener():
 @app.get("/screener-meta")
 async def screener_meta():
     print(f"🔍 Screener Meta Initiated")
-    tickers = await asyncio.to_thread(fetch_nifty_100)
+    tickers = await asyncio.to_thread(fetch_nifty_stocks)
     return {"tickers": tickers}
 
 @app.get("/screener-stock")
@@ -97,7 +97,7 @@ def webhook(data: dict):
 @app.get("/run-trades")
 def run_trading_strategy():
     results = []
-    tickers = fetch_nifty_100()
+    tickers = fetch_nifty_stocks()
 
     for ticker in tickers:
         try:
