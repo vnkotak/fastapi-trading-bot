@@ -144,7 +144,7 @@ def analyze_stock(ticker):
 # ------------------------------------------------------------------
 def run_screener():
     matches = []
-    tickers = fetch_nifty_100()
+    tickers = fetch_nifty_stocks()
 
     for ticker in tickers:
         stock = analyze_stock(ticker)
