@@ -73,6 +73,12 @@ def analyze_for_trading(ticker):
     print(f"\n🤖 Trading Analysis: {ticker}")
 
     if is_market_closed():
+        send_telegram(
+                f"⏰ *BUY Skipped* for `{ticker}`\n"
+                f"✅ Score: {score} (≥ {SCORE_THRESHOLD})\n"
+                f"🕒 Time: {india_now.strftime('%H:%M:%S')} IST\n"
+                f"🚫 Reason: After market close (3:15pm IST)"
+        )
         print("⏰ Market closed — skipping trade for", ticker)
         return
 
