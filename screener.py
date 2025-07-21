@@ -26,7 +26,7 @@ def fetch_nifty_stocks():
             .select("ticker") \
             .eq("status", "Active") \
             .eq("exchange", "NSE") \
-            .range(0, 1999) \
+            .limit(2999) \
             .execute()
 
         tickers = [row["ticker"] for row in response.data]
