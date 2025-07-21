@@ -108,6 +108,10 @@ def run_trading_strategy():
 
     return {"message": "Trading logic executed", "results": results}
 
+@app.get("/ping")
+def ping():
+    print("Shree Ganeshay Namah! Jai Bhavani Maa! Jai Meladi Maa! Jai Surapura Dada! Om Namah Sivay!")
+    return {"status": "ok"}
 
 @app.get("/trades-summary")
 def get_trades_summary(status: str = "open"):
