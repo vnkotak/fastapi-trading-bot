@@ -1,0 +1,15 @@
+name: 🔁 Render Health Ping
+
+on:
+  schedule:
+    - cron: '*/12 * * * *'  # every 12 minutes
+  workflow_dispatch:        # allows manual trigger too
+
+jobs:
+  ping-render:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🌐 Ping Render FastAPI health endpoint
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" https://fastapi-trading-bot-1.onrender.com/ping
