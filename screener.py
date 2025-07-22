@@ -140,7 +140,10 @@ def run_screener():
 
     # Store results in screener_batches and screener_results
     if matches:
-        batch_res = supabase.table("screener_batches").insert({}).execute()
+        batch_res = supabase.table("screener_batches").insert({
+            "num_matches":len(matches),
+            "source":"auto"
+        }).execute()
         batch_id = batch_res.data[0]["id"]
         print(f"📦 Created Screener Batch ID: {batch_id}")
 
