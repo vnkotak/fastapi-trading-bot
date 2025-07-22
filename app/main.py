@@ -113,8 +113,9 @@ def ping():
     print("Shree Ganeshay Namah! Jai Bhavani Maa! Jai Meladi Maa! Jai Surapura Dada! Om Namah Sivay!")
     return {"status": "ok"}
 
-app.get("/screener-latest")
+@app.get("/screener-latest")
 def screener_latest():
+    print("Fetch latest stocks from Screener")
     return get_latest_screener_batch()
 
 @app.get("/trades-summary")
