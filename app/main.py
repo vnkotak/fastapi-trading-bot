@@ -7,7 +7,7 @@ import asyncio
 from typing import Optional
 from trading import analyze_for_trading, get_trades_with_summary
 from indicators import send_telegram
-from screener import run_screener, analyze_stock, fetch_nifty_stocks
+from screener import run_screener, analyze_stock, fetch_nifty_stocks, get_latest_screener_batch
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
