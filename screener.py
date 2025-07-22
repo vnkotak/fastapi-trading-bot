@@ -17,9 +17,8 @@ from indicators import (
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ------------------------------------------------------------------
-# List of stocks (can later be dynamic from NSE CSV)
+# Load NSE tickers from Supabase master_stocks
 # ------------------------------------------------------------------
-
 def fetch_nifty_stocks():
     try:
         response = supabase.table("master_stocks") \
@@ -35,18 +34,6 @@ def fetch_nifty_stocks():
     except Exception as e:
         print(f"❌ Failed to fetch tickers: {e}")
         return []
-
-def fetch_nifty_100_old():
-    try:
-        return [
-           #  "VMM.NS", "NTPCGREEN.NS", "MCX.NS", "CREDITACC.NS", "RELIANCE.NS","TCS.NS"
-            # "AADHARHFC.NS",	"AARTIIND.NS",	"ACE.NS",	"ABREL.NS",	"AEGISLOG.NS",	"AFCONS.NS",	"AFFLE.NS",	"ARE&M.NS",	"AMBER.NS",	"ANANTRAJ.NS",	"ANGELONE.NS",	"ASTERDM.NS",	"ATUL.NS",	"BEML.NS",	"BLS.NS",	"BATAINDIA.NS",	"BSOFT.NS",	"FIRSTCRY.NS",	"BRIGADE.NS",	"CESC.NS",	"CASTROLIND.NS",	"CDSL.NS",	"CHAMBLFERT.NS",	"CAMS.NS",	"CREDITACC.NS",	"CROMPTON.NS",	"CYIENT.NS",	"DATAPATTNS.NS",	"DELHIVERY.NS",	"DEVYANI.NS",	"LALPATHLAB.NS",	"FSL.NS",	"FIVESTAR.NS",	"GRSE.NS",	"GODIGIT.NS",	"GODFRYPHLP.NS",	"GESHIP.NS",	"GSPL.NS",	"HBLENGINE.NS",	"HFCL.NS",	"HSCL.NS",	"HINDCOPPER.NS",	"IDBI.NS",	"IFCI.NS",	"IIFL.NS",	"IRCON.NS",	"ITI.NS",	"INDIAMART.NS",	"IEX.NS",	"INOXWIND.NS",	"IGIL.NS",	"IKS.NS",	"JBMA.NS",	"JWL.NS",	"KPIL.NS",	"KARURVYSYA.NS",	"KAYNES.NS",	"KEC.NS",	"KFINTECH.NS",	"LAURUSLABS.NS",	"MGL.NS",	"MANAPPURAM.NS",	"MCX.NS",	"NATCOPHARM.NS",	"NBCC.NS",	"NCC.NS",	"NH.NS",	"NAVINFLUOR.NS",	"NEULANDLAB.NS",	"NEWGEN.NS",	"NUVAMA.NS",	"PCBL.NS",	"PGEL.NS",	"PNBHOUSING.NS",	"PVRINOX.NS",	"PEL.NS",	"PPLPHARMA.NS",	"POONAWALLA.NS",	"RITES.NS",	"RADICO.NS",	"RAILTEL.NS",	"RKFORGE.NS",	"REDINGTON.NS",	"RPOWER.NS",	"SAGILITY.NS",	"SHYAMMETL.NS",	"SIGNATURE.NS",	"SONATSOFTW.NS",	"SWANENERGY.NS",	"TATACHEM.NS",	"TTML.NS",	"TEJASNET.NS",	"RAMCOCEM.NS",	"TITAGARH.NS",	"TRIDENT.NS",	"TRITURBINE.NS",	"WELCORP.NS",	"WELSPUNLIV.NS",	"ZENTEC.NS",	"ZENSARTECH.NS",	"ACC.NS",	"APLAPOLLO.NS",	"AUBANK.NS",	"ATGL.NS",	"ABCAPITAL.NS",	"ABFRL.NS",	"ALKEM.NS",	"APOLLOTYRE.NS",	"ASHOKLEY.NS",	"ASTRAL.NS",	"AUROPHARMA.NS",	"BSE.NS",	"BANDHANBNK.NS",	"BANKINDIA.NS",	"MAHABANK.NS",	"BDL.NS",	"BHARATFORG.NS",	"BHEL.NS",	"BHARTIHEXA.NS",	"BIOCON.NS",	"COCHINSHIP.NS",	"COFORGE.NS",	"COLPAL.NS",	"CONCOR.NS",	"CUMMINSIND.NS",	"DIXON.NS",	"ESCORTS.NS",	"EXIDEIND.NS",	"NYKAA.NS",	"FEDERALBNK.NS",	"GMRAIRPORT.NS",	"GLENMARK.NS",	"GODREJPROP.NS",	"HDFCAMC.NS",	"HINDPETRO.NS",	"HINDZINC.NS",	"HUDCO.NS",	"IDFCFIRSTB.NS",	"IRB.NS",	"INDIANB.NS",	"IRCTC.NS",	"IREDA.NS",	"IGL.NS",	"INDUSTOWER.NS",	"JUBLFOOD.NS",	"KPITTECH.NS",	"KALYANKJIL.NS",	"LTF.NS",	"LICHSGFIN.NS",	"LUPIN.NS",	"MRF.NS",	"M&MFIN.NS",	"MANKIND.NS",	"MARICO.NS",	"MFSL.NS",	"MAXHEALTH.NS",	"MAZDOCK.NS",	"MOTILALOFS.NS",	"MPHASIS.NS",	"MUTHOOTFIN.NS",	"NHPC.NS",	"NMDC.NS",	"NTPCGREEN.NS",	"NATIONALUM.NS",	"OBEROIRLTY.NS",	"OIL.NS",	"OLAELEC.NS",	"PAYTM.NS",	"OFSS.NS",	"POLICYBZR.NS",	"PIIND.NS",	"PAGEIND.NS",	"PATANJALI.NS",	"PERSISTENT.NS",	"PETRONET.NS",	"PHOENIXLTD.NS",	"POLYCAB.NS",	"PREMIERENE.NS",	"PRESTIGE.NS",	"RVNL.NS",	"SBICARD.NS",	"SJVN.NS",	"SRF.NS",	"SOLARINDS.NS",	"SONACOMS.NS",	"SAIL.NS",	"SUPREMEIND.NS",	"SUZLON.NS",	"TATACOMM.NS",	"TATAELXSI.NS",	"TATATECH.NS",	"TORNTPOWER.NS",	"TIINDIA.NS",	"UPL.NS",	"UNIONBANK.NS",	"VMM.NS",	"IDEA.NS",	"VOLTAS.NS",	"WAAREEENER.NS",	"YESBANK.NS",	"ABB.NS",	"ADANIENSOL.NS",	"ADANIENT.NS",	"ADANIGREEN.NS",	"ADANIPORTS.NS",	"ADANIPOWER.NS",	"AMBUJACEM.NS",	"APOLLOHOSP.NS",	"ASIANPAINT.NS",	"DMART.NS",	"AXISBANK.NS",	"BAJAJ-AUTO.NS",	"BAJFINANCE.NS",	"BAJAJFINSV.NS",	"BAJAJHLDNG.NS",	"BAJAJHFL.NS",	"BANKBARODA.NS",	"BEL.NS",	"BPCL.NS",	"BHARTIARTL.NS",	"BOSCHLTD.NS",	"BRITANNIA.NS",	"CGPOWER.NS",	"CANBK.NS",	"CHOLAFIN.NS",	"CIPLA.NS",	"COALINDIA.NS",	"DLF.NS",	"DABUR.NS",	"DIVISLAB.NS",	"DRREDDY.NS",	"EICHERMOT.NS",	"ETERNAL.NS",	"GAIL.NS",	"GODREJCP.NS",	"GRASIM.NS",	"HCLTECH.NS",	"HDFCBANK.NS",	"HDFCLIFE.NS",	"HAVELLS.NS",	"HEROMOTOCO.NS",	"HINDALCO.NS",	"HAL.NS",	"HINDUNILVR.NS",	"HYUNDAI.NS",	"ICICIBANK.NS",	"ICICIGI.NS",	"ICICIPRULI.NS",	"ITC.NS",	"INDHOTEL.NS",	"IOC.NS",	"IRFC.NS",	"INDUSINDBK.NS",	"NAUKRI.NS",	"INFY.NS",	"INDIGO.NS",	"JSWENERGY.NS",	"JSWSTEEL.NS",	"JINDALSTEL.NS",	"JIOFIN.NS",	"KOTAKBANK.NS",	"LTIM.NS",	"LT.NS",	"LICI.NS",	"LODHA.NS",	"M&M.NS",	"MARUTI.NS",	"NTPC.NS",	"NESTLEIND.NS",	"ONGC.NS",	"PIDILITIND.NS",	"PFC.NS",	"POWERGRID.NS",	"PNB.NS",	"RECLTD.NS",	"RELIANCE.NS",	"SBILIFE.NS",	"MOTHERSON.NS",	"SHREECEM.NS",	"SHRIRAMFIN.NS",	"SIEMENS.NS",	"SBIN.NS",	"SUNPHARMA.NS",	"SWIGGY.NS",	"TVSMOTOR.NS",	"TCS.NS",	"TATACONSUM.NS",	"TATAMOTORS.NS",	"TATAPOWER.NS",	"TATASTEEL.NS",	"TECHM.NS",	"TITAN.NS",	"TORNTPHARM.NS",	"TRENT.NS",	"ULTRACEMCO.NS",	"UNITDSPR.NS",	"VBL.NS",	"VEDL.NS",	"WIPRO.NS",	"ZYDUSLIFE.NS"
-        # ]
-        "GLENMARK.NS", "BHARTIARTL.NS", "TCS.NS", "EIEL.NS", "HINDUNILVR.NS"]
-
-    except Exception as e:
-        print(f"⚠️ Could not fetch NIFTY 100: {e}")
-        return ["RELIANCE.NS", "TCS.NS"]
 
 # ------------------------------------------------------------------
 # Analyze a single stock
@@ -70,7 +57,6 @@ def analyze_stock(ticker):
         df = calculate_additional_indicators(df)
         df.dropna(inplace=True)
 
-        # Attach candle pattern
         df['Candle'] = "None"
         df.at[df.index[-1], 'Candle'] = detect_candle_pattern(df)
 
@@ -83,7 +69,7 @@ def analyze_stock(ticker):
         if score < SCORE_THRESHOLD:
             return None
 
-        print(f"\n📊 Matched : {ticker}")
+        print(f"\n✅ Matched : {ticker}")
 
         history = df.tail(30).copy()
         history_json = [
@@ -140,7 +126,7 @@ def analyze_stock(ticker):
         return None
 
 # ------------------------------------------------------------------
-# Run Screener
+# Run Screener & Store Results to Supabase
 # ------------------------------------------------------------------
 def run_screener():
     matches = []
@@ -152,7 +138,25 @@ def run_screener():
             matches.append(stock)
         time.sleep(0.2)
 
+    # Store results in screener_batches and screener_results
     if matches:
+        batch_res = supabase.table("screener_batches").insert({}).execute()
+        batch_id = batch_res.data[0]["id"]
+        print(f"📦 Created Screener Batch ID: {batch_id}")
+
+        results_payload = [
+            {
+                "batch_id": batch_id,
+                "ticker": stock["ticker"],
+                "score": stock["score"],
+                "indicators": stock["matched_indicators"]
+            }
+            for stock in matches
+        ]
+
+        supabase.table("screener_results").insert(results_payload).execute()
+        print(f"✅ Stored {len(results_payload)} screener results.")
+
         for stock in matches:
             msg = (
                 f"🎯 *{stock['ticker']}*\n"
@@ -169,5 +173,40 @@ def run_screener():
     else:
         send_telegram("🚫 *No stocks matched advanced criteria today.*")
 
+# ------------------------------------------------------------------
+# Fetch Latest Screener Batch Metadata
+# ------------------------------------------------------------------
+def get_latest_screener_batch():
+    try:
+        batch_res = supabase.table("screener_batches") \
+            .select("id, timestamp") \
+            .order("timestamp", desc=True) \
+            .limit(1) \
+            .execute()
+
+        if not batch_res.data:
+            return {"refreshed_at": None, "tickers": []}
+
+        batch = batch_res.data[0]
+        batch_id = batch["id"]
+        refreshed_at = batch["timestamp"]
+        print(f"📦 Latest Screener Batch ID: {batch_id} @ {refreshed_at}")
+
+        result_res = supabase.table("screener_results") \
+            .select("ticker") \
+            .eq("batch_id", batch_id) \
+            .limit(2999) \
+            .execute()
+
+        tickers = [row["ticker"] for row in result_res.data]
+        return {"refreshed_at": refreshed_at, "tickers": tickers}
+
+    except Exception as e:
+        print(f"❌ Failed to fetch latest screener batch: {e}")
+        return {"refreshed_at": None, "tickers": []}
+
+# ------------------------------------------------------------------
+# Entry point
+# ------------------------------------------------------------------
 if __name__ == "__main__":
     run_screener()
