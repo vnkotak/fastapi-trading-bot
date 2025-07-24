@@ -132,7 +132,7 @@ def analyze_for_trading(ticker):
                 return
 
             price_variation_pct = abs(current_price - buy_price) / buy_price * 100
-            if price_variation_pct > 50:
+            if price_variation_pct > 25:
                 print(f"❌ SELL price variation > 50%: {price_variation_pct:.2f}% — skipping")
                 return
 
@@ -151,8 +151,8 @@ def analyze_for_trading(ticker):
 
             if len(indicator_triggers) >= 2:
                 sell_reasons.extend(indicator_triggers)
-            if profit_pct >= 10:
-                sell_reasons.append("Profit>10%")
+            if profit_pct >= 5:
+                sell_reasons.append("Profit>5%")
             if stop_loss_hit:
                 sell_reasons.append("StopLoss>3%")
 
