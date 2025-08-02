@@ -16,9 +16,6 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 TELEGRAM_BOT_TOKEN = "7468828306:AAG6uOChh0SFLZwfhnNMdljQLHTcdPcQTa4"
 TELEGRAM_CHAT_ID = "980258123"
 
-# ------------------------------------------------------------------------------
-# Telegram Bot - Send Message
-# ------------------------------------------------------------------------------
 def send_telegram(message):
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -35,9 +32,6 @@ def send_telegram(message):
     except Exception as e:
         print("⚠️ Telegram error:", e)
 
-# ------------------------------------------------------------------------------
-# Indicator Calculations
-# ------------------------------------------------------------------------------
 def calculate_rsi(series, period=14):
     delta = series.diff()
     gain = delta.where(delta > 0, 0).rolling(window=period).mean()
@@ -52,9 +46,6 @@ def calculate_macd(series, fast=12, slow=26, signal=9):
     signal_line = macd.ewm(span=signal, adjust=False).mean()
     return macd, signal_line
 
-# ------------------------------------------------------------------------------
-# Candle Pattern Detection (Manual)
-# ------------------------------------------------------------------------------
 def detect_candle_pattern(df):
     try:
         last = df.iloc[-1]
@@ -85,9 +76,6 @@ def detect_candle_pattern(df):
         print("⚠️ Candle pattern detection failed:", e)
         return "None"
 
-# ------------------------------------------------------------------------------
-# Shared Indicator Preparation Logic
-# ------------------------------------------------------------------------------
 def calculate_additional_indicators(df):
     rolling_mean = df['Close'].rolling(window=20).mean()
     rolling_std = df['Close'].rolling(window=20).std()
@@ -113,48 +101,55 @@ def calculate_additional_indicators(df):
 
     return df
 
-# ------------------------------------------------------------------------------
-# Scoring-based Strategy Logic (with indicator flags)
-# ------------------------------------------------------------------------------
 def advanced_strategy_score(latest, previous):
     score = 0.0
     matched_indicators = []
 
+    # Simplified trend scoring (avoid double counting)
     if latest['Close'] > latest['EMA_20'] > latest['EMA_50']:
         score += 1.0
         matched_indicators.append("price")
-
-    if latest['EMA_20'] > previous['EMA_20']:
+    elif latest['EMA_20'] > previous['EMA_20'] and latest['EMA_50'] > previous['EMA_50']:
         score += 0.5
-    if latest['EMA_50'] > previous['EMA_50']:
-        score += 0.5
+        matched_indicators.append("ema_trend")
 
+    # RSI in range & rising
     if RSI_THRESHOLD_MIN <= latest['RSI'] <= RSI_THRESHOLD_MAX and latest['RSI'] > previous['RSI']:
         score += 1.0
         matched_indicators.append("rsi")
 
+    # Volume surge + price up
     if latest['Volume'] > VOLUME_MULTIPLIER * latest['Volume_avg'] and latest['Close'] > previous['Close']:
         score += 1.0
         matched_indicators.append("volume")
 
+    # MACD bullish momentum
     if latest['MACD'] > latest['Signal'] and latest['MACD_Hist'] > 0 and latest['MACD_Hist'] > previous['MACD_Hist']:
         score += 1.0
         matched_indicators.append("macd")
 
+    # Stoch crossover
     if (latest['Stoch_K'] > latest['Stoch_D'] and
         previous['Stoch_K'] < previous['Stoch_D'] and
         latest['Stoch_K'] < STOCH_K_MAX):
         score += 0.5
         matched_indicators.append("stoch")
 
+    # Williams %R signal
     if latest['WilliamsR'] > previous['WilliamsR'] and latest['WilliamsR'] < WILLR_MAX:
         score += 0.5
         matched_indicators.append("willr")
 
+    # Adjust candle pattern weight conditionally
     pattern = latest.get("Candle", "None")
-    if "Hammer" in pattern or "Engulfing" in pattern:
-        score += 1.0
-    elif "Doji" in pattern:
+    price_change_3d = abs(latest.get('Price_Change_3D', 0))
+    rsi = latest.get('RSI', 100)
+
+    if ("Hammer" in pattern or "Engulfing" in pattern) and rsi < 60 and price_change_3d < 4:
         score += 0.5
+        matched_indicators.append("pattern")
+    elif "Doji" in pattern and rsi < 58 and price_change_3d < 4:
+        score += 0.25
+        matched_indicators.append("pattern")
 
     return score, matched_indicators
