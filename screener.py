@@ -66,8 +66,8 @@ def analyze_stock(ticker):
         score, matched_indicators = advanced_strategy_score(latest, previous)
         print(f"🧠 {ticker} Strategy Score: {score:.2f}")
 
-        if score < SCORE_THRESHOLD:
-            return None
+        #if score < SCORE_THRESHOLD:
+        #    return None
 
         print(f"\n✅ Matched : {ticker}")
 
@@ -213,3 +213,4 @@ def get_latest_screener_batch():
 # ------------------------------------------------------------------
 if __name__ == "__main__":
     run_screener()
+
