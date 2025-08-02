@@ -1,4 +1,4 @@
-import yfinance as yf 
+import yfinance as yf
 import pandas as pd
 import time
 from supabase import create_client, Client
@@ -13,12 +13,9 @@ from indicators import (
     SUPABASE_KEY
 )
 
-# Initialize Supabase
+# Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ------------------------------------------------------------------
-# Load NSE tickers from Supabase master_stocks
-# ------------------------------------------------------------------
 def fetch_nifty_stocks():
     try:
         response = supabase.table("master_stocks") \
@@ -35,9 +32,6 @@ def fetch_nifty_stocks():
         print(f"❌ Failed to fetch tickers: {e}")
         return []
 
-# ------------------------------------------------------------------
-# Analyze a single stock
-# ------------------------------------------------------------------
 def analyze_stock(ticker):
     print(f"\n📊 Analyzing: {ticker}")
     try:
@@ -57,17 +51,52 @@ def analyze_stock(ticker):
         df = calculate_additional_indicators(df)
         df.dropna(inplace=True)
 
+        # Prepare Candle Pattern
         df['Candle'] = "None"
         df.at[df.index[-1], 'Candle'] = detect_candle_pattern(df)
 
         latest = df.iloc[-1]
         previous = df.iloc[-2]
 
+        # --- Pre-Entry Filters ---
+
+        price_change_1d = latest['Price_Change_1D']
+        price_change_3d = latest['Price_Change_3D']
+        price_change_5d = latest['Price_Change_5D']
+        rsi = latest['RSI']
+        volume = latest['Volume']
+        volume_avg = latest['Volume_avg']
+        atr = latest['ATR']
+
+        mean_atr = df['ATR'][-21:-1].mean()  # 20-day ATR average (excluding today)
+
+        # Skip if recent run-up too strong
+        if price_change_3d > 5 or price_change_5d > 8:
+            print(f"⏳ Skipping {ticker}: recent run too strong (3D={price_change_3d:.2f}%, 5D={price_change_5d:.2f}%)")
+            return None
+
+        # Skip if RSI too high
+        if rsi > 62:
+            print(f"⏳ Skipping {ticker}: RSI too high ({rsi:.2f})")
+            return None
+
+        # Skip if volume spike and price spike (possible fakeout)
+        if volume > 2.5 * volume_avg and price_change_1d > 7:
+            print(f"⏳ Skipping {ticker}: volume and price spike (Vol={volume}, Avg={volume_avg}, PriceChg1D={price_change_1d:.2f}%)")
+            return None
+
+        # Skip if ATR today > 1.4 * mean ATR (high volatility day)
+        if atr > 1.4 * mean_atr:
+            print(f"⏳ Skipping {ticker}: ATR too high today ({atr:.2f} vs avg {mean_atr:.2f})")
+            return None
+
+        # Calculate strategy score
         score, matched_indicators = advanced_strategy_score(latest, previous)
         print(f"🧠 {ticker} Strategy Score: {score:.2f}")
 
-        #if score < SCORE_THRESHOLD:
-        #    return None
+        if score < SCORE_THRESHOLD:
+            print(f"⏳ Skipping {ticker}: Score below threshold ({score:.2f} < {SCORE_THRESHOLD})")
+            return None
 
         print(f"\n✅ Matched : {ticker}")
 
@@ -125,9 +154,6 @@ def analyze_stock(ticker):
         print(f"❌ Error analyzing {ticker}: {e}")
         return None
 
-# ------------------------------------------------------------------
-# Run Screener & Store Results to Supabase
-# ------------------------------------------------------------------
 def run_screener():
     matches = []
     tickers = fetch_nifty_stocks()
@@ -138,7 +164,6 @@ def run_screener():
             matches.append(stock)
         time.sleep(0.2)
 
-    # Store results in screener_batches and screener_results
     if matches:
         batch_res = supabase.table("screener_batches").insert({
             "num_matches":len(matches),
@@ -176,9 +201,6 @@ def run_screener():
     else:
         send_telegram("🚫 *No stocks matched advanced criteria today.*")
 
-# ------------------------------------------------------------------
-# Fetch Latest Screener Batch Metadata
-# ------------------------------------------------------------------
 def get_latest_screener_batch():
     try:
         batch_res = supabase.table("screener_batches") \
@@ -203,14 +225,9 @@ def get_latest_screener_batch():
 
         tickers = [row["ticker"] for row in result_res.data]
         return {"refreshed_at": refreshed_at, "tickers": tickers}
-
     except Exception as e:
         print(f"❌ Failed to fetch latest screener batch: {e}")
         return {"refreshed_at": None, "tickers": []}
 
-# ------------------------------------------------------------------
-# Entry point
-# ------------------------------------------------------------------
 if __name__ == "__main__":
     run_screener()
-
