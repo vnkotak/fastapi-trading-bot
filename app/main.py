@@ -125,3 +125,12 @@ def get_trades_summary(status: str = "open"):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+from enhanced_screener import run_ai_enhanced_screening
+
+# Replace your existing endpoint
+@app.get("/run-enhanced-screening")
+def run_enhanced_screening():
+    run_ai_enhanced_screening(auto_execute=True)
+    return {"status": "Enhanced screening completed"}
