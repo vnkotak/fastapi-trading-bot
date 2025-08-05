@@ -1,44 +1,34 @@
-# execution_engine_fixed.py - Fixed to work with your existing database schema
 import yfinance as yf
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from supabase import create_client
+from risk_manager import RiskManager, StopLossOptimizer
+from multi_timeframe_analyzer import EntryOptimizer
+from indicators import send_telegram, SUPABASE_URL, SUPABASE_KEY
 import time
 import json
 
-# Import your fixed components
-from risk_manager import RiskManager, StopLossOptimizer
-from multi_timeframe_analyzer import EntryOptimizer
-from indicators import SUPABASE_URL, SUPABASE_KEY
-
-# Import the column mapping
-from column_mapping import get_insert_data_mapped, get_update_data_mapped
-
-# Import fixed telegram
-try:
-    from telegram_fix import send_telegram
-except ImportError:
-    from indicators import send_telegram
-
-class ExecutionEngineFixed:
+class ExecutionEngine:
     """
-    Smart order execution adapted for your existing database schema
+    Smart order execution with optimal timing and risk management
     """
     def __init__(self):
         self.supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         self.risk_manager = RiskManager()
         self.stop_optimizer = StopLossOptimizer()
-        # self.entry_optimizer = EntryOptimizer()  # Comment out if causing issues
+        self.entry_optimizer = EntryOptimizer()
+        self.pending_orders = {}
+        self.position_tracker = {}
         
         # Execution settings
-        self.max_slippage = 0.005
-        self.order_timeout = 300
-        self.min_liquidity = 100000
+        self.max_slippage = 0.005  # 0.5% max slippage
+        self.order_timeout = 300   # 5 minutes timeout
+        self.min_liquidity = 100000  # Minimum volume requirement
         
     def execute_trade_signal(self, signal_data, market_regime="SIDEWAYS"):
         """
-        Execute trade using your existing database schema
+        Execute a trade based on signal data with intelligent timing
         """
         try:
             ticker = signal_data['ticker']
@@ -56,14 +46,19 @@ class ExecutionEngineFixed:
             
             current_price = current_data['current_price']
             
+            # Optimize entry timing and price
+            entry_optimization = self.entry_optimizer.find_optimal_entry_price(
+                ticker, signal_data
+            )
+            
             # Calculate optimal stop loss
             stock_df = self._get_stock_data_for_stop(ticker)
             stop_loss, stop_type = self.stop_optimizer.calculate_dynamic_stop(
-                stock_df, current_price, 'momentum'  # Default pattern type
+                stock_df, current_price, signal_data.get('pattern_type', 'momentum')
             )
             
             # Calculate position size
-            confidence_score = signal_data.get('score', signal_data.get('final_score', 5.0))
+            confidence_score = signal_data.get('final_score', signal_data.get('score', 5.0))
             volatility_factor = current_data.get('atr_ratio', 1.0)
             
             position_size, sizing_reason = self.risk_manager.calculate_position_size(
@@ -77,14 +72,34 @@ class ExecutionEngineFixed:
             # Calculate targets
             targets = self._calculate_profit_targets(current_price, stop_loss)
             
-            # Execute the trade
-            execution_result = self._execute_paper_trade_fixed(
-                ticker, signal_data, current_price, position_size, 
-                stop_loss, targets, market_regime, confidence_score, stop_type
+            # Create order
+            order = self._create_order(
+                ticker=ticker,
+                signal_data=signal_data,
+                entry_price=current_price,
+                optimized_entry=entry_optimization,
+                position_size=position_size,
+                stop_loss=stop_loss,
+                targets=targets,
+                market_data=current_data,
+                reasoning={
+                    'sizing_reason': sizing_reason,
+                    'stop_type': stop_type,
+                    'market_regime': market_regime,
+                    'confidence': confidence_score
+                }
             )
             
+            # Execute the order
+            execution_result = self._execute_paper_trade(order)
+            
             if execution_result['success']:
-                self._send_execution_notification_fixed(execution_result)
+                # Send notification
+                self._send_execution_notification(order, execution_result)
+                
+                # Store in database
+                self._store_trade_in_db(order, execution_result)
+                
                 print(f"✅ Trade executed successfully for {ticker}")
                 return execution_result
             else:
@@ -96,22 +111,24 @@ class ExecutionEngineFixed:
             return None
     
     def _pre_execution_checks(self, signal_data):
-        """Pre-execution validation checks"""
+        """
+        Perform pre-execution validation checks
+        """
         ticker = signal_data['ticker']
         
-        # Check if trading is allowed
+        # Check if trading is allowed today
         can_trade, reason = self.risk_manager.should_trade_today()
         if not can_trade:
             print(f"🚫 Trading not allowed: {reason}")
             return False
         
-        # Check existing position using your table structure
+        # Check if already have position in this stock
         if self._has_existing_position(ticker):
             print(f"⚠️ Already have position in {ticker}")
             return False
         
         # Check signal strength
-        score = signal_data.get('score', signal_data.get('final_score', 0))
+        score = signal_data.get('final_score', signal_data.get('score', 0))
         if score < 4.0:
             print(f"⚠️ Signal too weak for {ticker}: {score}")
             return False
@@ -119,8 +136,11 @@ class ExecutionEngineFixed:
         return True
     
     def _get_current_market_data(self, ticker):
-        """Get current market data"""
+        """
+        Get current market data for execution
+        """
         try:
+            # Get recent data
             data = yf.download(ticker, period="5d", interval="1d", progress=False)
             
             if data.empty:
@@ -131,17 +151,19 @@ class ExecutionEngineFixed:
             
             latest = data.iloc[-1]
             
-            # Calculate metrics
+            # Calculate additional metrics
             atr = (data['High'] - data['Low']).rolling(14).mean().iloc[-1]
             avg_volume = data['Volume'].rolling(20).mean().iloc[-1]
             atr_ratio = atr / data['Close'].rolling(20).mean().iloc[-1]
             
             return {
-                'current_price': float(latest['Close']),
-                'volume': float(latest['Volume']),
-                'avg_volume': float(avg_volume) if pd.notna(avg_volume) else float(latest['Volume']),
-                'atr': float(atr) if pd.notna(atr) else 50.0,
-                'atr_ratio': float(atr_ratio) if pd.notna(atr_ratio) else 1.0,
+                'current_price': latest['Close'],
+                'volume': latest['Volume'],
+                'avg_volume': avg_volume,
+                'atr': atr,
+                'atr_ratio': atr_ratio,
+                'high': latest['High'],
+                'low': latest['Low'],
                 'timestamp': datetime.now()
             }
             
@@ -150,7 +172,9 @@ class ExecutionEngineFixed:
             return None
     
     def _get_stock_data_for_stop(self, ticker):
-        """Get stock data for stop loss calculation"""
+        """
+        Get stock data for stop loss calculation
+        """
         try:
             data = yf.download(ticker, period="3mo", interval="1d", progress=False)
             
@@ -166,158 +190,200 @@ class ExecutionEngineFixed:
             return pd.DataFrame()
     
     def _calculate_profit_targets(self, entry_price, stop_loss):
-        """Calculate profit targets"""
+        """
+        Calculate profit targets based on risk-reward ratios
+        """
         risk = entry_price - stop_loss
         
-        return {
+        targets = {
             'target_1': entry_price + (risk * 1.5),  # 1.5:1 R:R
-            'target_2': entry_price + (risk * 2.0),  # 2:1 R:R  
+            'target_2': entry_price + (risk * 2.0),  # 2:1 R:R
             'target_3': entry_price + (risk * 3.0),  # 3:1 R:R
         }
+        
+        return targets
     
-    def _execute_paper_trade_fixed(self, ticker, signal_data, entry_price, position_size, 
-                                  stop_loss, targets, market_regime, confidence_score, stop_type):
-        """Execute paper trade using your database schema"""
+    def _create_order(self, **kwargs):
+        """
+        Create a structured order object
+        """
+        return {
+            'ticker': kwargs['ticker'],
+            'signal_data': kwargs['signal_data'],
+            'entry_price': kwargs['entry_price'],
+            'optimized_entry': kwargs['optimized_entry'],
+            'position_size': kwargs['position_size'],
+            'stop_loss': kwargs['stop_loss'],
+            'targets': kwargs['targets'],
+            'market_data': kwargs['market_data'],
+            'reasoning': kwargs['reasoning'],
+            'order_time': datetime.now(),
+            'order_id': f"{kwargs['ticker']}_{int(time.time())}"
+        }
+    
+    def _execute_paper_trade(self, order):
+        """
+        Execute paper trade with realistic simulation
+        """
         try:
-            # Simulate slippage
+            ticker = order['ticker']
+            entry_price = order['entry_price']
+            position_size = order['position_size']
+            
+            # Simulate slippage (random between 0 and max_slippage)
             slippage = np.random.uniform(0, self.max_slippage)
             executed_price = entry_price * (1 + slippage)
             
-            # Calculate values
+            # Calculate position value
             position_value = executed_price * position_size
-            initial_risk = abs(executed_price - stop_loss) * position_size
             
-            # Prepare data for your database schema
-            trade_data = {
-                'ticker': ticker,
-                'price': executed_price,                    # Your column name
-                'timestamp': datetime.now(),                # Your column name  
-                'action': 'BUY',
-                'status': 'OPEN',
-                'quantity': int(position_size),
-                'total_invested': position_value,           # Your column name
-                'reason': f"AI Signal Score: {confidence_score:.1f}",
-                'score': confidence_score,                  # Your column name
-                'ml_probability': signal_data.get('ml_probability', 0.7),
-                'market_regime': market_regime,
-                'stop_type': stop_type,
-                'reasoning': json.dumps({                   # Your column name (but misspelled as 'easoning')
-                    'signal_indicators': signal_data.get('matched_indicators', []),
-                    'market_regime': market_regime,
-                    'stop_type': stop_type,
-                    'entry_strategy': 'ai_enhanced'
-                })
+            # Calculate initial risk
+            initial_risk = abs(executed_price - order['stop_loss']) * position_size
+            
+            execution_result = {
+                'success': True,
+                'executed_price': executed_price,
+                'slippage': slippage,
+                'position_value': position_value,
+                'initial_risk': initial_risk,
+                'execution_time': datetime.now(),
+                'order_id': order['order_id']
             }
             
-            # Add new columns if they were added to your table
+            return execution_result
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'reason': str(e),
+                'execution_time': datetime.now()
+            }
+    
+    def _send_execution_notification(self, order, execution_result):
+        """
+        Send Telegram notification for trade execution
+        """
+        try:
+            ticker = order['ticker']
+            entry_price = execution_result['executed_price']
+            position_size = order['position_size']
+            stop_loss = order['stop_loss']
+            targets = order['targets']
+            confidence = order['reasoning']['confidence']
+            
+            # Calculate risk and reward
+            risk_per_share = entry_price - stop_loss
+            risk_amount = risk_per_share * position_size
+            target1_reward = (targets['target_1'] - entry_price) * position_size
+            
+            message = f"""
+🎯 *TRADE EXECUTED*
+
+📊 *{ticker}*
+💰 Entry: ₹{entry_price:.2f}
+📈 Quantity: {position_size:,} shares
+💸 Investment: ₹{execution_result['position_value']:,.0f}
+
+🛑 Stop Loss: ₹{stop_loss:.2f}
+🎯 Target 1: ₹{targets['target_1']:.2f}
+🎯 Target 2: ₹{targets['target_2']:.2f}
+
+💀 Risk: ₹{risk_amount:,.0f} ({risk_per_share/entry_price*100:.1f}%)
+💎 Reward: ₹{target1_reward:,.0f} (1.5:1 R:R)
+
+🧠 Confidence: {confidence:.1f}/10
+📋 Regime: {order['reasoning']['market_regime']}
+⚡ Slippage: {execution_result['slippage']*100:.2f}%
+
+🕒 Time: {execution_result['execution_time'].strftime('%H:%M')}
+            """
+            
+            send_telegram(message.strip())
+            
+        except Exception as e:
+            print(f"⚠️ Error sending execution notification: {e}")
+    
+    def _store_trade_in_db(self, order, execution_result):
+        """
+        Store trade details in Supabase database using existing schema
+        """
+        try:
+            # Map to your existing column names
+            trade_data = {
+                'ticker': order['ticker'],
+                'price': execution_result['executed_price'],           # Your existing column
+                'timestamp': execution_result['execution_time'],       # Your existing column
+                'action': 'BUY',
+                'status': 'OPEN',
+                'quantity': int(order['position_size']),
+                'total_invested': execution_result['position_value'],  # Your existing column
+                'reason': f"AI Signal Score: {order['signal_data'].get('final_score', order['signal_data'].get('score', 0)):.1f}",
+                'score': order['signal_data'].get('final_score', order['signal_data'].get('score', 0)),  # Your existing column
+                'ml_probability': order['signal_data'].get('ml_probability', 0.7),
+                'market_regime': order['reasoning']['market_regime'],
+                'stop_type': order['reasoning']['stop_type'],
+                'reasoning': json.dumps(order['reasoning'])  # Your existing column (but misspelled as 'easoning')
+            }
+            
+            # Add new columns if they exist (from ALTER TABLE)
             try:
                 trade_data.update({
-                    'stop_loss': stop_loss,
-                    'target_1': targets['target_1'],
-                    'target_2': targets['target_2'], 
-                    'target_3': targets['target_3'],
-                    'initial_risk': initial_risk,
-                    'slippage': slippage,
-                    'order_id': f"{ticker}_{int(time.time())}",
-                    'matched_indicators': json.dumps(signal_data.get('matched_indicators', [])),
-                    'entry_date': datetime.now(),
-                    'position_value': position_value,
-                    'signal_score': confidence_score
+                    'entry_date': execution_result['execution_time'],
+                    'stop_loss': order['stop_loss'],
+                    'target_1': order['targets']['target_1'],
+                    'target_2': order['targets']['target_2'],
+                    'target_3': order['targets']['target_3'],
+                    'initial_risk': execution_result['initial_risk'],
+                    'position_value': execution_result['position_value'],
+                    'slippage': execution_result['slippage'],
+                    'order_id': order['order_id'],
+                    'matched_indicators': json.dumps(order['signal_data'].get('matched_indicators', [])),
+                    'signal_score': order['signal_data'].get('final_score', order['signal_data'].get('score', 0))
                 })
             except Exception as col_error:
-                print(f"⚠️ Some new columns not available: {col_error}")
+                print(f"⚠️ Some new columns not available yet: {col_error}")
+                # This is fine - means you haven't run the ALTER TABLE commands yet
             
-            # Insert into database
             response = self.supabase.table("trades").insert(trade_data).execute()
             
             if response.data:
-                trade_id = response.data[0]['id']
-                
-                execution_result = {
-                    'success': True,
-                    'trade_id': trade_id,
-                    'ticker': ticker,
-                    'executed_price': executed_price,
-                    'slippage': slippage,
-                    'position_size': position_size,
-                    'position_value': position_value,
-                    'initial_risk': initial_risk,
-                    'stop_loss': stop_loss,
-                    'targets': targets,
-                    'execution_time': datetime.now(),
-                    'confidence_score': confidence_score,
-                    'market_regime': market_regime
-                }
-                
-                return execution_result
+                print(f"📝 Trade stored in database: {order['ticker']}")
+                return response.data[0]['id']
             else:
-                return {'success': False, 'reason': 'Database insert failed'}
+                print(f"⚠️ Failed to store trade in database")
+                return None
                 
         except Exception as e:
-            print(f"❌ Execution error: {e}")
-            return {'success': False, 'reason': str(e)}
-    
-    def _send_execution_notification_fixed(self, execution_result):
-        """Send execution notification with safe formatting"""
-        try:
-            ticker = execution_result['ticker']
-            entry_price = execution_result['executed_price']
-            position_size = execution_result['position_size']
-            stop_loss = execution_result['stop_loss']
-            targets = execution_result['targets']
-            confidence = execution_result['confidence_score']
-            
-            risk_amount = execution_result['initial_risk']
-            target1_reward = (targets['target_1'] - entry_price) * position_size
-            
-            # Simple message without complex markdown
-            message = f"""TRADE EXECUTED
-
-Ticker: {ticker}
-Entry: Rs{entry_price:.2f}
-Quantity: {position_size:,} shares
-Investment: Rs{execution_result['position_value']:,.0f}
-
-Stop Loss: Rs{stop_loss:.2f}
-Target 1: Rs{targets['target_1']:.2f}
-Target 2: Rs{targets['target_2']:.2f}
-
-Risk: Rs{risk_amount:,.0f}
-Reward: Rs{target1_reward:,.0f} (1.5:1 R:R)
-
-Confidence: {confidence:.1f}/10
-Regime: {execution_result['market_regime']}
-Slippage: {execution_result['slippage']*100:.2f}%
-
-Time: {execution_result['execution_time'].strftime('%H:%M')}"""
-            
-            send_telegram(message)
-            
-        except Exception as e:
-            print(f"⚠️ Error sending notification: {e}")
+            print(f"❌ Error storing trade in database: {e}")
+            return None
     
     def _has_existing_position(self, ticker):
-        """Check existing position using your table structure"""
+        """
+        Check if we already have a position in this stock
+        """
         try:
-            response = self.supabase.table("trades").select("ticker").eq("ticker", ticker).eq("status", "OPEN").execute()
+            response = self.supabase.table("trades").select("ticker").eq("ticker", ticker).eq("status", "open").execute()
             return len(response.data) > 0
         except:
             return False
 
-# Position manager adapted for your schema
-class PositionManagerFixed:
-    """Position manager adapted for your database schema"""
+class PositionManager:
+    """
+    Manages existing positions with trailing stops and profit taking
+    """
     def __init__(self):
         self.supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         self.stop_optimizer = StopLossOptimizer()
         
     def update_all_positions(self):
-        """Update all open positions"""
+        """
+        Update all open positions with current prices and trailing stops
+        """
         try:
             print("🔄 Updating all open positions...")
             
-            # Get open positions using your schema
-            response = self.supabase.table("trades").select("*").eq("status", "OPEN").execute()
+            # Get all open positions
+            response = self.supabase.table("trades").select("*").eq("status", "open").execute()
             open_positions = response.data
             
             if not open_positions:
@@ -329,23 +395,25 @@ class PositionManagerFixed:
             
             for position in open_positions:
                 try:
-                    result = self._update_single_position_fixed(position)
+                    update_result = self._update_single_position(position)
                     
-                    if result['action'] == 'updated':
+                    if update_result['action'] == 'updated':
                         updated_count += 1
-                    elif result['action'] == 'closed':
+                    elif update_result['action'] == 'closed':
                         closed_count += 1
                         
                 except Exception as e:
-                    print(f"⚠️ Error updating {position['ticker']}: {e}")
+                    print(f"⚠️ Error updating position {position['ticker']}: {e}")
             
-            print(f"✅ Update complete: {updated_count} updated, {closed_count} closed")
+            print(f"✅ Position update complete: {updated_count} updated, {closed_count} closed")
             
         except Exception as e:
             print(f"❌ Error updating positions: {e}")
     
-    def _update_single_position_fixed(self, position):
-        """Update single position using your schema"""
+    def _update_single_position(self, position):
+        """
+        Update a single position with current market data using existing schema
+        """
         ticker = position['ticker']
         
         # Get current price
@@ -353,62 +421,71 @@ class PositionManagerFixed:
         if not current_price:
             return {'action': 'error', 'reason': 'Cannot get current price'}
         
-        entry_price = float(position['price'])  # Your column name
+        entry_price = float(position['price'])  # Use existing 'price' column
         current_stop = float(position.get('stop_loss', entry_price * 0.95))
         quantity = int(position['quantity'])
         
-        # Calculate P&L
+        # Calculate current P&L
         unrealized_pnl = (current_price - entry_price) * quantity
         pnl_percent = (current_price - entry_price) / entry_price * 100
         
-        # Check stop loss
+        # Check if stop loss is hit
         if current_price <= current_stop:
-            return self._close_position_fixed(position, current_price, 'stop_loss')
+            return self._close_position(position, current_price, 'stop_loss')
         
-        # Check targets (if available)
-        target_hit = self._check_targets_fixed(position, current_price)
+        # Check if target is hit
+        target_hit = self._check_targets(position, current_price)
         if target_hit:
-            return self._close_position_fixed(position, current_price, f'target_{target_hit}')
+            return self._close_position(position, current_price, f'target_{target_hit}')
         
         # Update trailing stop
         new_stop, trail_reason = self.stop_optimizer.update_trailing_stop(
             current_price, entry_price, current_stop
         )
         
-        # Update in database using your column names
+        # Update position in database using existing/new columns
         update_data = {
-            'last_updated': datetime.now().isoformat()
+            'reason': f"Updated: P&L {pnl_percent:+.1f}%",  # Use existing 'reason' column
         }
         
-        # Add new columns if available
+        # Add new columns if they exist
         try:
             update_data.update({
                 'current_price': current_price,
                 'unrealized_pnl': unrealized_pnl,
                 'pnl_percent': pnl_percent,
-                'stop_loss': new_stop
+                'stop_loss': new_stop,
+                'last_updated': datetime.now().isoformat()
             })
         except:
             pass  # New columns not available yet
         
         self.supabase.table("trades").update(update_data).eq("id", position['id']).execute()
         
+        # Send update notification if significant change
+        if trail_reason == 'stop_trailed' or abs(pnl_percent) > 5:
+            self._send_position_update(position, current_price, unrealized_pnl, new_stop, trail_reason)
+        
         return {'action': 'updated', 'new_stop': new_stop, 'pnl': unrealized_pnl}
     
     def _get_current_price(self, ticker):
-        """Get current price"""
+        """
+        Get current market price for a ticker
+        """
         try:
             data = yf.download(ticker, period="1d", interval="1m", progress=False)
             if not data.empty:
                 if isinstance(data.columns, pd.MultiIndex):
                     data.columns = data.columns.get_level_values(0)
-                return float(data['Close'].iloc[-1])
+                return data['Close'].iloc[-1]
             return None
         except:
             return None
     
-    def _check_targets_fixed(self, position, current_price):
-        """Check targets using your schema"""
+    def _check_targets(self, position, current_price):
+        """
+        Check if any profit targets are hit
+        """
         targets = {
             1: position.get('target_1'),
             2: position.get('target_2'),
@@ -416,16 +493,18 @@ class PositionManagerFixed:
         }
         
         for target_num, target_price in targets.items():
-            if target_price and float(current_price) >= float(target_price):
+            if target_price and current_price >= target_price:
                 return target_num
         
         return None
     
-    def _close_position_fixed(self, position, exit_price, exit_reason):
-        """Close position using your schema"""
+    def _close_position(self, position, exit_price, exit_reason):
+        """
+        Close a position and calculate final P&L using existing schema
+        """
         try:
             ticker = position['ticker']
-            entry_price = float(position['price'])  # Your column name
+            entry_price = float(position['price'])  # Use existing 'price' column
             quantity = int(position['quantity'])
             
             # Calculate final P&L
@@ -437,14 +516,13 @@ class PositionManagerFixed:
             exit_date = datetime.now()
             days_held = (exit_date - entry_date).days
             
-            # Update using your column names
+            # Update position in database using existing columns
             update_data = {
-                'status': 'CLOSED',
-                'reason': f"Closed: {exit_reason}",  # Update your reason field
-                'last_updated': exit_date.isoformat()
+                'status': 'CLOSED',  # Your existing column
+                'reason': f"Closed: {exit_reason} | P&L: ₹{final_pnl:,.0f} ({pnl_percent:+.1f}%)"  # Update existing reason
             }
             
-            # Add new columns if available
+            # Add new columns if they exist
             try:
                 update_data.update({
                     'exit_date': exit_date.isoformat(),
@@ -452,17 +530,18 @@ class PositionManagerFixed:
                     'exit_reason': exit_reason,
                     'pnl': final_pnl,
                     'pnl_percent': pnl_percent,
-                    'days_held': days_held
+                    'days_held': days_held,
+                    'last_updated': exit_date.isoformat()
                 })
             except:
-                pass  # New columns not available
+                pass  # New columns not available yet
             
             self.supabase.table("trades").update(update_data).eq("id", position['id']).execute()
             
-            # Send notification
-            self._send_closure_notification_fixed(position, exit_price, final_pnl, exit_reason, days_held)
+            # Send closure notification
+            self._send_closure_notification(position, exit_price, final_pnl, exit_reason, days_held)
             
-            print(f"🔒 Position closed: {ticker} | P&L: Rs{final_pnl:,.0f} ({pnl_percent:+.1f}%)")
+            print(f"🔒 Position closed: {ticker} | P&L: ₹{final_pnl:,.0f} ({pnl_percent:+.1f}%)")
             
             return {'action': 'closed', 'pnl': final_pnl, 'reason': exit_reason}
             
@@ -470,24 +549,66 @@ class PositionManagerFixed:
             print(f"❌ Error closing position {position['ticker']}: {e}")
             return {'action': 'error', 'reason': str(e)}
     
-    def _send_closure_notification_fixed(self, position, exit_price, pnl, exit_reason, days_held):
-        """Send closure notification with safe formatting"""
+    def _send_position_update(self, position, current_price, pnl, new_stop, trail_reason):
+        """
+        Send position update notification using existing schema
+        """
         try:
             ticker = position['ticker']
-            entry_price = float(position['price'])  # Your column name
+            entry_price = float(position['price'])  # Use existing 'price' column
+            pnl_percent = (current_price - entry_price) / entry_price * 100
+            
+            if trail_reason == 'stop_trailed':
+                icon = "📈"
+                status = "STOP TRAILED"
+            elif pnl > 0:
+                icon = "💚"
+                status = "PROFIT UPDATE"
+            else:
+                icon = "🔴"
+                status = "LOSS UPDATE"
+            
+            # Simple message without complex markdown
+            message = f"""{icon} {status}
+
+Ticker: {ticker}
+Entry: Rs{entry_price:.2f}
+Current: Rs{current_price:.2f}
+New Stop: Rs{new_stop:.2f}
+
+P&L: Rs{pnl:,.0f} ({pnl_percent:+.1f}%)
+Days: {(datetime.now() - datetime.fromisoformat(position['timestamp'].replace('Z', '+00:00'))).days}"""
+            
+            send_telegram(message)
+            
+        except Exception as e:
+            print(f"⚠️ Error sending position update: {e}")
+    
+    def _send_closure_notification(self, position, exit_price, pnl, exit_reason, days_held):
+        """
+        Send position closure notification using existing schema
+        """
+        try:
+            ticker = position['ticker']
+            entry_price = float(position['price'])  # Use existing 'price' column
             pnl_percent = (exit_price - entry_price) / entry_price * 100
             
-            status = "PROFIT" if pnl > 0 else "LOSS"
-            icon = "✅" if pnl > 0 else "❌"
+            if pnl > 0:
+                icon = "✅"
+                status = "PROFIT"
+            else:
+                icon = "❌"
+                status = "LOSS"
             
             reason_text = {
                 'stop_loss': 'Stop Loss Hit',
                 'target_1': 'Target 1 Hit',
-                'target_2': 'Target 2 Hit', 
+                'target_2': 'Target 2 Hit',
                 'target_3': 'Target 3 Hit',
                 'manual': 'Manual Exit'
             }.get(exit_reason, exit_reason)
             
+            # Simple message without complex markdown
             message = f"""{icon} POSITION CLOSED - {status}
 
 Ticker: {ticker}
@@ -504,44 +625,31 @@ Daily Return: {pnl_percent/max(days_held, 1):+.2f}%"""
         except Exception as e:
             print(f"⚠️ Error sending closure notification: {e}")
 
-# Export the fixed classes
-def get_execution_engine():
-    """Get the fixed execution engine"""
-    return ExecutionEngineFixed()
-
-def get_position_manager():
-    """Get the fixed position manager"""
-    return PositionManagerFixed()
-
 # Usage and testing
 if __name__ == "__main__":
-    print("🧪 Testing Fixed Execution Engine...")
+    execution_engine = ExecutionEngine()
+    position_manager = PositionManager()
     
-    # Test execution engine
-    execution_engine = ExecutionEngineFixed()
-    position_manager = PositionManagerFixed()
+    print("⚡ Execution Engine Testing")
     
-    # Test with sample signal
+    # Test with sample signal data
     sample_signal = {
         'ticker': 'RELIANCE.NS',
         'score': 6.5,
+        'final_score': 6.5,
         'close': 2500,
         'matched_indicators': ['rsi', 'macd', 'volume'],
-        'analysis_type': 'traditional_enhanced'
+        'pattern_type': 'momentum'
     }
     
-    print(f"\n🎯 Testing Trade Execution...")
+    print(f"\n🧪 Testing Trade Execution...")
     print(f"   Signal: {sample_signal['ticker']} (Score: {sample_signal['score']})")
     
-    # Uncomment to test actual execution
+    # Test execution (this would normally be called by your screener)
     # execution_result = execution_engine.execute_trade_signal(sample_signal, "BULL_WEAK")
-    # if execution_result:
-    #     print(f"   ✅ Execution successful: {execution_result['trade_id']}")
-    # else:
-    #     print(f"   ❌ Execution failed")
     
     # Test position management
     print(f"\n📊 Testing Position Management...")
     position_manager.update_all_positions()
     
-    print(f"\n✅ Fixed Execution Engine testing complete")
+    print(f"\n✅ Execution Engine testing complete")
