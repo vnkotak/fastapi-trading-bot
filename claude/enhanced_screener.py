@@ -6,11 +6,11 @@ from supabase import create_client, Client
 
 # Import our new AI components
 from claude.market_regime import MarketRegimeDetector
-from adaptive_config import AdaptiveConfig
-from multi_timeframe_analyzer import MultiTimeframeAnalyzer
-from ml_predictor import MLEnhancedScoring
-from execution_engine import ExecutionEngine
-from risk_manager import RiskManager
+from claude.adaptive_config import AdaptiveConfig
+from claude.multi_timeframe_analyzer import MultiTimeframeAnalyzer
+from claude.ml_predictor import MLEnhancedScoring
+from claude.execution_engine import ExecutionEngine
+from claude.risk_manager import RiskManager
 
 # Import existing components
 from indicators import (
