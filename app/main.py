@@ -9,6 +9,7 @@ from trading import analyze_for_trading, get_trades_with_summary
 from indicators import send_telegram
 from screener import run_screener, analyze_stock, fetch_nifty_stocks, get_latest_screener_batch
 from fastapi.middleware.cors import CORSMiddleware
+from enhanced_screener import run_ai_enhanced_screening
 
 app = FastAPI()
 print("✅ FastAPI app created")
@@ -126,8 +127,6 @@ def get_trades_summary(status: str = "open"):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-from enhanced_screener import run_ai_enhanced_screening
 
 # Replace your existing endpoint
 @app.get("/run-enhanced-screening")
