@@ -223,7 +223,8 @@ Note: ML components disabled for testing"""
                 if not stock_result:
                     continue
                 
-                print("Step 3")
+                print("Step 3 ", stock_result['score'])
+                print("Step 3a ", self.current_config['SCORE_THRESHOLD'])
                 self.session_stats['traditional_filtered'] += 1
                     
                 # Check if qualifies
