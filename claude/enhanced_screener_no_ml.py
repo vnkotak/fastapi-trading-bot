@@ -225,7 +225,7 @@ Note: ML components disabled for testing"""
                 
                 print("Step 3 ", stock_result['score'])
                 print("Step 3a ", self.current_config['SCORE_THRESHOLD'])
-                 stock_result['score'] = 7.0
+                stock_result['score'] = 7.0
                 self.session_stats['traditional_filtered'] += 1
                     
                 # Check if qualifies
