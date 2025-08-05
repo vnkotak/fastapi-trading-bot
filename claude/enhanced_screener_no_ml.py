@@ -199,7 +199,7 @@ Note: ML components disabled for testing"""
         processed_count = 0
         
         # Limit for testing
-        tickers_to_process = tickers[:500] if len(tickers) > 500 else tickers
+        tickers_to_process = tickers[:5000] if len(tickers) > 500 else tickers
         
         for ticker in tickers_to_process:
             try:
@@ -225,7 +225,6 @@ Note: ML components disabled for testing"""
                 
                 print("Step 3 ", stock_result['score'])
                 print("Step 3a ", self.current_config['SCORE_THRESHOLD'])
-                stock_result['score'] = 7.0
                 self.session_stats['traditional_filtered'] += 1
                     
                 # Check if qualifies
