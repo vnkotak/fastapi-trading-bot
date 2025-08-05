@@ -1,4 +1,4 @@
-from market_regime import MarketRegimeDetector
+from claude.market_regime import MarketRegimeDetector
 from datetime import datetime
 import json
 
