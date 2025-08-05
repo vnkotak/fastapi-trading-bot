@@ -22,36 +22,76 @@ class MarketRegimeDetector:
             # Fetch Nifty 50 data
             nifty_data = yf.download("^NSEI", period="3mo", interval="1d", progress=False)
             
-            if nifty_data.empty:
-                print("⚠️ Could not fetch Nifty data, using SIDEWAYS regime")
+            if nifty_data.empty or len(nifty_data) < 20:
+                print("⚠️ Insufficient Nifty data, using SIDEWAYS regime")
                 return "SIDEWAYS", 0.5
             
-            # Calculate indicators
-            nifty_data['EMA_20'] = nifty_data['Close'].ewm(span=20, adjust=False).mean()
-            nifty_data['EMA_50'] = nifty_data['Close'].ewm(span=50, adjust=False).mean()
-            nifty_data['RSI'] = calculate_rsi(nifty_data['Close'])
+            # Clean column names if MultiIndex
+            if isinstance(nifty_data.columns, pd.MultiIndex):
+                nifty_data.columns = nifty_data.columns.get_level_values(0)
+            nifty_data.columns.name = None
             
-            # Calculate volatility (VIX proxy)
-            nifty_data['Daily_Range'] = (nifty_data['High'] - nifty_data['Low']) / nifty_data['Close']
-            nifty_data['Volatility'] = nifty_data['Daily_Range'].rolling(20).mean()
+            # Calculate indicators with error handling
+            try:
+                nifty_data['EMA_20'] = nifty_data['Close'].ewm(span=20, adjust=False).mean()
+                nifty_data['EMA_50'] = nifty_data['Close'].ewm(span=50, adjust=False).mean()
+                nifty_data['RSI'] = calculate_rsi(nifty_data['Close'])
+                
+                # Calculate volatility (VIX proxy)
+                nifty_data['Daily_Range'] = (nifty_data['High'] - nifty_data['Low']) / nifty_data['Close']
+                nifty_data['Volatility'] = nifty_data['Daily_Range'].rolling(20).mean()
+                
+                # Drop any NaN rows
+                nifty_data = nifty_data.dropna()
+                
+                if nifty_data.empty or len(nifty_data) < 10:
+                    print("⚠️ Insufficient clean data after calculations")
+                    return "SIDEWAYS", 0.5
+                    
+            except Exception as calc_error:
+                print(f"⚠️ Error calculating indicators: {calc_error}")
+                return "SIDEWAYS", 0.5
             
-            # Get latest values
+            # Get latest values (extract scalar values to avoid Series comparison issues)
             latest = nifty_data.iloc[-1]
-            prev_week = nifty_data.iloc[-5]  # 5 days ago
             
-            # Calculate metrics
-            price = latest['Close']
-            ema_20 = latest['EMA_20']
-            ema_50 = latest['EMA_50']
-            rsi = latest['RSI']
-            volatility = latest['Volatility']
+            # Extract scalar values with validation
+            try:
+                price = float(latest['Close'])
+                ema_20 = float(latest['EMA_20'])
+                ema_50 = float(latest['EMA_50'])
+                rsi = float(latest['RSI'])
+                volatility = float(latest['Volatility'])
+                
+                # Validate extracted values
+                if any(pd.isna([price, ema_20, ema_50, rsi, volatility])):
+                    print("⚠️ NaN values in latest data")
+                    return "SIDEWAYS", 0.5
+                    
+            except (KeyError, ValueError, TypeError) as extract_error:
+                print(f"⚠️ Error extracting latest values: {extract_error}")
+                return "SIDEWAYS", 0.5
             
-            # Price change metrics
-            change_1d = ((price - nifty_data['Close'].iloc[-2]) / nifty_data['Close'].iloc[-2]) * 100
-            change_5d = ((price - prev_week['Close']) / prev_week['Close']) * 100
+            # Price change metrics (ensure we have enough data)
+            try:
+                if len(nifty_data) >= 6:
+                    prev_close_1d = float(nifty_data['Close'].iloc[-2])
+                    prev_close_5d = float(nifty_data['Close'].iloc[-6])  # 6 days ago to get 5-day change
+                    
+                    change_1d = ((price - prev_close_1d) / prev_close_1d) * 100 if prev_close_1d != 0 else 0
+                    change_5d = ((price - prev_close_5d) / prev_close_5d) * 100 if prev_close_5d != 0 else 0
+                else:
+                    change_1d = 0
+                    change_5d = 0
+            except (IndexError, ValueError, ZeroDivisionError):
+                change_1d = 0
+                change_5d = 0
             
             # Trend strength
-            trend_strength = abs(ema_20 - ema_50) / ema_50 * 100
+            try:
+                trend_strength = abs(ema_20 - ema_50) / ema_50 * 100 if ema_50 != 0 else 0
+            except (ValueError, ZeroDivisionError):
+                trend_strength = 0
             
             # Regime classification logic
             regime, confidence = self._classify_regime(
@@ -68,13 +108,25 @@ class MarketRegimeDetector:
             
         except Exception as e:
             print(f"❌ Error detecting market regime: {e}")
+            print(f"🔧 Using default SIDEWAYS regime")
             return "SIDEWAYS", 0.5
     
     def _classify_regime(self, price, ema_20, ema_50, rsi, volatility, change_1d, change_5d, trend_strength):
         """
         Classify market regime based on multiple factors
+        All inputs should be scalar values (float/int)
         """
         confidence = 0.7  # Base confidence
+        
+        # Ensure all inputs are scalar (convert from numpy/pandas types if needed)
+        price = float(price)
+        ema_20 = float(ema_20)
+        ema_50 = float(ema_50)
+        rsi = float(rsi)
+        volatility = float(volatility)
+        change_1d = float(change_1d)
+        change_5d = float(change_5d)
+        trend_strength = float(trend_strength)
         
         # Strong uptrend conditions
         if (price > ema_20 > ema_50 and 
