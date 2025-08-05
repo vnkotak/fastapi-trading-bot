@@ -5,7 +5,7 @@ from datetime import datetime
 from supabase import create_client, Client
 
 # Import our new AI components
-from market_regime import MarketRegimeDetector
+from claude.market_regime import MarketRegimeDetector
 from adaptive_config import AdaptiveConfig
 from multi_timeframe_analyzer import MultiTimeframeAnalyzer
 from ml_predictor import MLEnhancedScoring
