@@ -17,11 +17,12 @@ TELEGRAM_BOT_TOKEN = "7468828306:AAG6uOChh0SFLZwfhnNMdljQLHTcdPcQTa4"
 TELEGRAM_CHAT_ID = "980258123"
 
 def send_telegram(message):
+    print("Telegram", message)
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
         payload = {
             "chat_id": TELEGRAM_CHAT_ID,
-            "text": message,
+            "text": message.replace("*","").replace("_",""),
             "parse_mode": "Markdown"
         }
         response = requests.post(url, json=payload)
