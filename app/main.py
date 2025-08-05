@@ -136,5 +136,6 @@ def get_trades_summary(status: str = "open"):
 # Replace your existing endpoint
 @app.get("/run-enhanced-screening")
 def run_enhanced_screening():
+    print("Request received for running enhanced screening")
     run_ai_enhanced_screening(auto_execute=True)
     return {"status": "Enhanced screening completed"}
