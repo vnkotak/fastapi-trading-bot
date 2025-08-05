@@ -323,14 +323,14 @@ Note: ML components disabled for testing"""
             if df.empty or len(df) < 50:
                 return None
             
-            print("2.1")
+            # print("2.1")
             df = calculate_additional_indicators(df)
             df.dropna(inplace=True)
             
             if df.empty:
                 return None
 
-            print("2.2")
+            # print("2.2")
             # Detect candle pattern
             df['Candle'] = "None"
             df.at[df.index[-1], 'Candle'] = detect_candle_pattern(df)
@@ -338,19 +338,19 @@ Note: ML components disabled for testing"""
             latest = df.iloc[-1]
             previous = df.iloc[-2] if len(df) > 1 else latest
 
-            print("2.3")
+            # print("2.3")
             # Get traditional strategy score
             score, matched_indicators = advanced_strategy_score(latest, previous)
             
             # Apply regime-specific scoring weights
             weights = self.adaptive_config.get_scoring_weights(self.current_regime)
 
-            print("2.4")
+            # print("2.4")
             # Adjust score based on regime weights (simplified)
             regime_multiplier = weights.get('price_trend', 1.0)  # Use trend weight as overall multiplier
             adjusted_score = score * regime_multiplier
 
-            print("2.5")
+            # print("2.5")
             # Create result
             result = {
                 "ticker": ticker,
@@ -378,7 +378,7 @@ Note: ML components disabled for testing"""
                 "regime_multiplier": round(regime_multiplier, 2),
                 "analysis_type": "traditional_enhanced"
             }
-            print("2.6", result)
+            print("Ticker Result : ", result)
             return result
             
         except Exception as e:
