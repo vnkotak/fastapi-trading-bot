@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from supabase import create_client
-from risk_manager import RiskManager, StopLossOptimizer
-from multi_timeframe_analyzer import EntryOptimizer
+from claude.risk_manager import RiskManager, StopLossOptimizer
+from claude.multi_timeframe_analyzer import EntryOptimizer
 from indicators import send_telegram, SUPABASE_URL, SUPABASE_KEY
 import time
 import json
