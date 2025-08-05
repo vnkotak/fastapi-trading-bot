@@ -205,7 +205,7 @@ Note: ML components disabled for testing"""
             try:
                 processed_count += 1
                 self.session_stats['total_analyzed'] += 1
-                
+                print("Step 1", ticker)
                 # Progress reporting
                 if processed_count % 50 == 0:
                     progress = (processed_count / len(tickers_to_process)) * 100
@@ -215,6 +215,7 @@ Note: ML components disabled for testing"""
                 if not self._apply_regime_filters(ticker):
                     continue
                 
+                print("Step 2")
                 self.session_stats['passed_filters'] += 1
                 
                 # Traditional analysis (no ML)
@@ -222,6 +223,7 @@ Note: ML components disabled for testing"""
                 if not stock_result:
                     continue
                 
+                print("Step 3")
                 self.session_stats['traditional_filtered'] += 1
                     
                 # Check if qualifies
@@ -229,7 +231,8 @@ Note: ML components disabled for testing"""
                     qualified_stocks.append(stock_result)
                     self.session_stats['final_signals'] += 1
                     print(f"✅ Qualified: {ticker} (Score: {stock_result['score']:.2f})")
-                
+
+                print("Step 4")
                 # Rate limiting
                 time.sleep(0.05)
                 
@@ -311,29 +314,34 @@ Note: ML components disabled for testing"""
             if df.empty or len(df) < 50:
                 return None
             
+            print("2.1")
             df = calculate_additional_indicators(df)
             df.dropna(inplace=True)
             
             if df.empty:
                 return None
-            
+
+            print("2.2")
             # Detect candle pattern
             df['Candle'] = "None"
             df.at[df.index[-1], 'Candle'] = detect_candle_pattern(df)
             
             latest = df.iloc[-1]
             previous = df.iloc[-2] if len(df) > 1 else latest
-            
+
+            print("2.3")
             # Get traditional strategy score
             score, matched_indicators = advanced_strategy_score(latest, previous)
             
             # Apply regime-specific scoring weights
             weights = self.adaptive_config.get_scoring_weights(self.current_regime)
-            
+
+            print("2.4")
             # Adjust score based on regime weights (simplified)
             regime_multiplier = weights.get('price_trend', 1.0)  # Use trend weight as overall multiplier
             adjusted_score = score * regime_multiplier
-            
+
+            print("2.5")
             # Create result
             result = {
                 "ticker": ticker,
@@ -361,7 +369,7 @@ Note: ML components disabled for testing"""
                 "regime_multiplier": round(regime_multiplier, 2),
                 "analysis_type": "traditional_enhanced"
             }
-            
+            print("2.6", result)
             return result
             
         except Exception as e:
