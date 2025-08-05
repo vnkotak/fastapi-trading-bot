@@ -304,17 +304,17 @@ class EnhancedScreener:
             previous = df.iloc[-2]
             
             # Apply ML-enhanced scoring
-            enhanced_score, enhanced_indicators, ml_details = self.ml_enhanced_scoring.enhanced_strategy_score(
-                latest, previous, df, nifty_data
-            )
+            # enhanced_score, enhanced_indicators, ml_details = self.ml_enhanced_scoring.enhanced_strategy_score(
+            #   latest, previous, df, nifty_data
+            # )
             
             # Check ML confidence filter
-            ml_confidence_ok, ml_reason = self.ml_enhanced_scoring.should_trade_ml_filter(
-                ml_details['ml_probability']
-            )
+            # ml_confidence_ok, ml_reason = self.ml_enhanced_scoring.should_trade_ml_filter(
+            #    ml_details['ml_probability']
+            # )
             
-            if not ml_confidence_ok:
-                return None
+            # if not ml_confidence_ok:
+            #    return None
             
             # Prepare Candle Pattern
             df['Candle'] = "None"
