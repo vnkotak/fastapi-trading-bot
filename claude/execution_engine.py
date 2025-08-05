@@ -9,6 +9,23 @@ from indicators import send_telegram, SUPABASE_URL, SUPABASE_KEY
 import time
 import json
 
+def serialize_for_db(value):
+    """
+    Helper function to serialize values for database storage
+    """
+    if isinstance(value, datetime):
+        return value.isoformat()
+    elif isinstance(value, (np.integer, np.int64)):
+        return int(value)
+    elif isinstance(value, (np.floating, np.float64)):
+        return float(value)
+    elif isinstance(value, np.ndarray):
+        return value.tolist()
+    elif pd.isna(value):
+        return None
+    else:
+        return value
+
 class ExecutionEngine:
     """
     Smart order execution with optimal timing and risk management
@@ -308,41 +325,58 @@ class ExecutionEngine:
         Store trade details in Supabase database using existing schema
         """
         try:
-            # Map to your existing column names
+            # Map to your existing column names with proper serialization
             trade_data = {
-                'ticker': order['ticker'],
-                'price': execution_result['executed_price'],           # Your existing column
-                'timestamp': execution_result['execution_time'],       # Your existing column
+                'ticker': str(order['ticker']),
+                'price': serialize_for_db(execution_result['executed_price']),
+                'timestamp': serialize_for_db(execution_result['execution_time']),
                 'action': 'BUY',
                 'status': 'OPEN',
-                'quantity': int(order['position_size']),
-                'total_invested': execution_result['position_value'],  # Your existing column
+                'quantity': serialize_for_db(order['position_size']),
+                'total_invested': serialize_for_db(execution_result['position_value']),
                 'reason': f"AI Signal Score: {order['signal_data'].get('final_score', order['signal_data'].get('score', 0)):.1f}",
-                'score': order['signal_data'].get('final_score', order['signal_data'].get('score', 0)),  # Your existing column
-                'ml_probability': order['signal_data'].get('ml_probability', 0.7),
-                'market_regime': order['reasoning']['market_regime'],
-                'stop_type': order['reasoning']['stop_type'],
-                'reasoning': json.dumps(order['reasoning'])  # Your existing column (but misspelled as 'easoning')
+                'score': serialize_for_db(order['signal_data'].get('final_score', order['signal_data'].get('score', 0))),
+                'ml_probability': serialize_for_db(order['signal_data'].get('ml_probability', 0.7)),
+                'market_regime': str(order['reasoning']['market_regime']),
+                'stop_type': str(order['reasoning']['stop_type']),
+                'reasoning': json.dumps(order['reasoning'])
             }
             
-            # Add new columns if they exist (from ALTER TABLE)
+            # Add new columns if they exist (from ALTER TABLE) with proper serialization
             try:
-                trade_data.update({
-                    'entry_date': execution_result['execution_time'],
-                    'stop_loss': order['stop_loss'],
-                    'target_1': order['targets']['target_1'],
-                    'target_2': order['targets']['target_2'],
-                    'target_3': order['targets']['target_3'],
-                    'initial_risk': execution_result['initial_risk'],
-                    'position_value': execution_result['position_value'],
-                    'slippage': execution_result['slippage'],
-                    'order_id': order['order_id'],
+                new_columns = {
+                    'entry_date': serialize_for_db(execution_result['execution_time']),
+                    'stop_loss': serialize_for_db(order['stop_loss']),
+                    'target_1': serialize_for_db(order['targets']['target_1']),
+                    'target_2': serialize_for_db(order['targets']['target_2']),
+                    'target_3': serialize_for_db(order['targets']['target_3']),
+                    'initial_risk': serialize_for_db(execution_result['initial_risk']),
+                    'position_value': serialize_for_db(execution_result['position_value']),
+                    'slippage': serialize_for_db(execution_result['slippage']),
+                    'order_id': str(order['order_id']),
                     'matched_indicators': json.dumps(order['signal_data'].get('matched_indicators', [])),
-                    'signal_score': order['signal_data'].get('final_score', order['signal_data'].get('score', 0))
-                })
+                    'signal_score': serialize_for_db(order['signal_data'].get('final_score', order['signal_data'].get('score', 0)))
+                }
+                trade_data.update(new_columns)
             except Exception as col_error:
                 print(f"⚠️ Some new columns not available yet: {col_error}")
-                # This is fine - means you haven't run the ALTER TABLE commands yet
+            
+            # Debug: Print the data being inserted (remove in production)
+            print(f"🔍 Inserting trade data: {json.dumps(trade_data, indent=2, default=str)}")
+            
+            response = self.supabase.table("trades").insert(trade_data).execute()
+            
+            if response.data:
+                print(f"📝 Trade stored in database: {order['ticker']}")
+                return response.data[0]['id']
+            else:
+                print(f"⚠️ Failed to store trade in database: {response}")
+                return None
+                
+        except Exception as e:
+            print(f"❌ Error storing trade in database: {e}")
+            print(f"🔍 Trade data keys: {list(trade_data.keys()) if 'trade_data' in locals() else 'Not created'}")
+            return None
             
             response = self.supabase.table("trades").insert(trade_data).execute()
             
@@ -448,14 +482,14 @@ class PositionManager:
             'reason': f"Updated: P&L {pnl_percent:+.1f}%",  # Use existing 'reason' column
         }
         
-        # Add new columns if they exist
+        # Add new columns if they exist with proper serialization
         try:
             update_data.update({
-                'current_price': current_price,
-                'unrealized_pnl': unrealized_pnl,
-                'pnl_percent': pnl_percent,
-                'stop_loss': new_stop,
-                'last_updated': datetime.now().isoformat()
+                'current_price': float(current_price),
+                'unrealized_pnl': float(unrealized_pnl),
+                'pnl_percent': float(pnl_percent),
+                'stop_loss': float(new_stop),
+                'last_updated': datetime.now().isoformat()  # Convert to string
             })
         except:
             pass  # New columns not available yet
@@ -522,15 +556,15 @@ class PositionManager:
                 'reason': f"Closed: {exit_reason} | P&L: ₹{final_pnl:,.0f} ({pnl_percent:+.1f}%)"  # Update existing reason
             }
             
-            # Add new columns if they exist
+            # Add new columns if they exist with proper serialization
             try:
                 update_data.update({
                     'exit_date': exit_date.isoformat(),
-                    'exit_price': exit_price,
-                    'exit_reason': exit_reason,
-                    'pnl': final_pnl,
-                    'pnl_percent': pnl_percent,
-                    'days_held': days_held,
+                    'exit_price': float(exit_price),
+                    'exit_reason': str(exit_reason),
+                    'pnl': float(final_pnl),
+                    'pnl_percent': float(pnl_percent),
+                    'days_held': int(days_held),
                     'last_updated': exit_date.isoformat()
                 })
             except:
