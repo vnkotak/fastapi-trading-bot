@@ -215,7 +215,7 @@ Note: ML components disabled for testing"""
                 if not self._apply_regime_filters(ticker):
                     continue
                 
-                print("Step 2")
+                # print("Step 2")
                 self.session_stats['passed_filters'] += 1
                 
                 # Traditional analysis (no ML)
@@ -223,8 +223,7 @@ Note: ML components disabled for testing"""
                 if not stock_result:
                     continue
                 
-                print("Step 3 ", stock_result['score'])
-                print("Step 3a ", self.current_config['SCORE_THRESHOLD'])
+                print(f"Step 3 : Score - {stock_result['score']} : Threshold {self.current_config['SCORE_THRESHOLD']}")
                 self.session_stats['traditional_filtered'] += 1
                     
                 # Check if qualifies
@@ -233,7 +232,7 @@ Note: ML components disabled for testing"""
                     self.session_stats['final_signals'] += 1
                     print(f"✅ Qualified: {ticker} (Score: {stock_result['score']:.2f})")
 
-                print("Step 4")
+                # print("Step 4")
                 # Rate limiting
                 time.sleep(0.05)
                 
@@ -254,7 +253,7 @@ Note: ML components disabled for testing"""
         try:
             df = yf.download(ticker, period="3mo", interval="1d", progress=False)
 
-            print("Step 1.1")
+            # print("Step 1.1")
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
             df.columns.name = None
@@ -264,40 +263,40 @@ Note: ML components disabled for testing"""
             if df.empty or len(df) < 50:
                 return False
 
-            print("Step 1.2")
+            # print("Step 1.2")
             df = df.astype(float)
             df = calculate_additional_indicators(df)
             df.dropna(inplace=True)
 
-            print("Step 1.3")
+            # print("Step 1.3")
             if df.empty:
                 return False
             
             latest = df.iloc[-1]
 
-            print("Step 1.4")
+            # print("Step 1.4")
             # Get regime-specific filters
             filters = self.adaptive_config.get_regime_specific_filters(self.current_regime)
 
-            print("Step 1.5")
+            # print("Step 1.5")
             # Apply filters
             if latest['RSI'] > filters['skip_rsi_above']:
                 return False
 
-            print("Step 1.6")
+            # print("Step 1.6")
             if latest['Price_Change_3D'] > filters['skip_price_change_3d_above']:
                 return False
 
-            print("Step 1.7")
+            # print("Step 1.7")
             if latest['Price_Change_5D'] > filters['skip_price_change_5d_above']:
                 return False
 
-            print("Step 1.8")
+            # print("Step 1.8")
             if (latest['Volume'] > filters['skip_volume_spike_threshold'] * latest['Volume_avg'] and 
                 latest['Price_Change_1D'] > 7):
                 return False
 
-            print("Step 1.9")
+            # print("Step 1.9")
             if len(df) >= 21:
                 mean_atr = df['ATR'][-21:-1].mean()
                 if pd.notna(mean_atr) and latest['ATR'] > filters['skip_atr_multiplier'] * mean_atr:
