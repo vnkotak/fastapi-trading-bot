@@ -12,7 +12,7 @@ class RiskManager:
         self.initial_capital = initial_capital
         self.current_capital = initial_capital
         self.max_portfolio_risk = 0.02  # 2% total portfolio risk
-        self.max_single_position = 0.05  # 5% max per position
+        self.max_single_position = 0.005  # 5% max per position
         self.max_correlation_exposure = 0.15  # 15% max in correlated positions
         self.max_sector_exposure = 0.20  # 20% max per sector
         self.supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
