@@ -199,13 +199,13 @@ Note: ML components disabled for testing"""
         processed_count = 0
         
         # Limit for testing
-        tickers_to_process = tickers[:5000] if len(tickers) > 500 else tickers
+        tickers_to_process = tickers[:1800] if len(tickers) > 1800 else tickers
         
         for ticker in tickers_to_process:
             try:
                 processed_count += 1
                 self.session_stats['total_analyzed'] += 1
-                print("Step 1", ticker)
+                print(f"Step 1 : {processed_count} : {ticker} ")
                 # Progress reporting
                 if processed_count % 50 == 0:
                     progress = (processed_count / len(tickers_to_process)) * 100
