@@ -121,7 +121,7 @@ class ExecutionEngine:
             
             if execution_result['success']:
                 # Send notification
-                self._send_execution_notification(execution_result)
+                self._send_execution_notification(order, execution_result)
                 
                 # Store in database
                 trade_id = self._store_trade_in_db(order, execution_result)
