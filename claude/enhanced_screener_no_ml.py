@@ -79,7 +79,7 @@ class EnhancedScreenerNoML:
             'duplicate_skips': 0  # Track duplicate skips
         }
     
-    def run_enhanced_screening(self, auto_execute=False):
+    def run_ai_enhanced_screening(self, auto_execute=False):
         """
         Run the enhanced screening process without ML
         """
@@ -208,7 +208,7 @@ Note: ML components disabled for testing"""
         processed_count = 0
         
         # Limit for testing
-        tickers_to_process = tickers[:500] if len(tickers) > 500 else tickers
+        tickers_to_process = tickers[:1800] if len(tickers) > 1800 else tickers
         
         for ticker in tickers_to_process:
             try:
