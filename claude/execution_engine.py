@@ -50,30 +50,35 @@ class ExecutionEngine:
         try:
             ticker = signal_data['ticker']
             print(f"🎯 Executing trade signal for {ticker}")
-            
+
+            print ("1")
             # Pre-execution checks
             if not self._pre_execution_checks(signal_data):
                 return None
-            
+
+            print ("2")
             # Get current market data
             current_data = self._get_current_market_data(ticker)
             if not current_data:
                 print(f"❌ Cannot get current market data for {ticker}")
                 return None
-            
+
+            print ("3")
             current_price = current_data['current_price']
-            
+
             # Optimize entry timing and price
             entry_optimization = self.entry_optimizer.find_optimal_entry_price(
                 ticker, signal_data
             )
             
+            print ("4")
             # Calculate optimal stop loss
             stock_df = self._get_stock_data_for_stop(ticker)
             stop_loss, stop_type = self.stop_optimizer.calculate_dynamic_stop(
                 stock_df, current_price, signal_data.get('pattern_type', 'momentum')
             )
-            
+
+            print ("5")
             # Calculate position size
             confidence_score = signal_data.get('final_score', signal_data.get('score', 5.0))
             volatility_factor = current_data.get('atr_ratio', 1.0)
@@ -81,14 +86,17 @@ class ExecutionEngine:
             position_size, sizing_reason = self.risk_manager.calculate_position_size(
                 current_price, stop_loss, confidence_score, market_regime, volatility_factor
             )
-            
+
+            print ("6")
             if position_size <= 0:
                 print(f"⚠️ Position size too small for {ticker}: {sizing_reason}")
                 return None
-            
+
+            print ("7")
             # Calculate targets
             targets = self._calculate_profit_targets(current_price, stop_loss)
-            
+
+            print ("8")
             # Create order
             order = self._create_order(
                 ticker=ticker,
@@ -106,11 +114,13 @@ class ExecutionEngine:
                     'confidence': confidence_score
                 }
             )
-            
+
+            print ("9")
             # Execute the order
             execution_result = self._execute_paper_trade(order)
-            
+
             if execution_result['success']:
+                print ("10")
                 # Send notification
                 self._send_execution_notification(order, execution_result)
                 
@@ -146,7 +156,8 @@ class ExecutionEngine:
         
         # Check signal strength
         score = signal_data.get('final_score', signal_data.get('score', 0))
-        if score < 4.0:
+        # if score < 4.0:
+        if score < 2.0:
             print(f"⚠️ Signal too weak for {ticker}: {score}")
             return False
         
