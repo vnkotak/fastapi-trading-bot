@@ -49,36 +49,32 @@ class ExecutionEngine:
         """
         try:
             ticker = signal_data['ticker']
-            print(f"🎯 Executing trade signal for {ticker}")
-
-            print ("1")
+            print(f"🎯 Executing trade signal for {ticker} (Score: {signal_data.get('score', 0):.2f})")
+            
             # Pre-execution checks
             if not self._pre_execution_checks(signal_data):
+                print(f"❌ Pre-execution checks failed for {ticker}")
                 return None
-
-            print ("2")
+            
+            print(f"✅ Pre-execution checks passed for {ticker}")
+            
             # Get current market data
             current_data = self._get_current_market_data(ticker)
             if not current_data:
                 print(f"❌ Cannot get current market data for {ticker}")
                 return None
-
-            print ("3")
-            current_price = current_data['current_price']
-
-            # Optimize entry timing and price
-            entry_optimization = self.entry_optimizer.find_optimal_entry_price(
-                ticker, signal_data
-            )
             
-            print ("4")
+            current_price = current_data['current_price']
+            print(f"💰 Current price for {ticker}: ₹{current_price:.2f}")
+            
             # Calculate optimal stop loss
             stock_df = self._get_stock_data_for_stop(ticker)
             stop_loss, stop_type = self.stop_optimizer.calculate_dynamic_stop(
                 stock_df, current_price, signal_data.get('pattern_type', 'momentum')
             )
-
-            print ("5")
+            
+            print(f"🛑 Stop loss for {ticker}: ₹{stop_loss:.2f} ({stop_type})")
+            
             # Calculate position size
             confidence_score = signal_data.get('final_score', signal_data.get('score', 5.0))
             volatility_factor = current_data.get('atr_ratio', 1.0)
@@ -86,23 +82,26 @@ class ExecutionEngine:
             position_size, sizing_reason = self.risk_manager.calculate_position_size(
                 current_price, stop_loss, confidence_score, market_regime, volatility_factor
             )
-
-            print ("6")
+            
+            print(f"📊 Position sizing for {ticker}: {position_size} shares")
+            print(f"📋 Sizing reason: {sizing_reason}")
+            
             if position_size <= 0:
-                print(f"⚠️ Position size too small for {ticker}: {sizing_reason}")
+                print(f"❌ Position size too small for {ticker}: {sizing_reason}")
                 return None
-
-            print ("7")
+            
+            print(f"✅ Position size acceptable for {ticker}: {position_size} shares")
+            
             # Calculate targets
             targets = self._calculate_profit_targets(current_price, stop_loss)
-
-            print ("8")
+            print(f"🎯 Targets for {ticker}: T1=₹{targets['target_1']:.2f}, T2=₹{targets['target_2']:.2f}")
+            
             # Create order
             order = self._create_order(
                 ticker=ticker,
                 signal_data=signal_data,
                 entry_price=current_price,
-                optimized_entry=entry_optimization,
+                optimized_entry={'entry_price': current_price, 'entry_strategy': 'market_price'},
                 position_size=position_size,
                 stop_loss=stop_loss,
                 targets=targets,
@@ -114,21 +113,26 @@ class ExecutionEngine:
                     'confidence': confidence_score
                 }
             )
-
-            print ("9")
+            
+            print(f"📝 Order created for {ticker}")
+            
             # Execute the order
             execution_result = self._execute_paper_trade(order)
-
+            
             if execution_result['success']:
-                print ("10")
                 # Send notification
-                self._send_execution_notification(order, execution_result)
+                self._send_execution_notification(execution_result)
                 
                 # Store in database
-                self._store_trade_in_db(order, execution_result)
+                trade_id = self._store_trade_in_db(order, execution_result)
                 
-                print(f"✅ Trade executed successfully for {ticker}")
-                return execution_result
+                if trade_id:
+                    execution_result['trade_id'] = trade_id
+                    print(f"✅ Trade executed successfully for {ticker} (ID: {trade_id})")
+                    return execution_result
+                else:
+                    print(f"❌ Trade execution succeeded but database storage failed for {ticker}")
+                    return None
             else:
                 print(f"❌ Trade execution failed for {ticker}: {execution_result['reason']}")
                 return None
@@ -156,7 +160,6 @@ class ExecutionEngine:
         
         # Check signal strength
         score = signal_data.get('final_score', signal_data.get('score', 0))
-        # if score < 4.0:
         if score < 2.0:
             print(f"⚠️ Signal too weak for {ticker}: {score}")
             return False
@@ -404,13 +407,40 @@ class ExecutionEngine:
     
     def _has_existing_position(self, ticker):
         """
-        Check if we already have a position in this stock
+        Check if we already have an open position in this stock
+        Handles both 'OPEN' and 'open' status formats
         """
         try:
-            response = self.supabase.table("trades").select("ticker").eq("ticker", ticker).eq("status", "open").execute()
-            return len(response.data) > 0
-        except:
-            return False
+            print(f"🔍 Checking existing position for {ticker}...")
+            
+            # Check for OPEN positions (try both cases)
+            response = self.supabase.table("trades").select("ticker, status, id").eq("ticker", ticker).execute()
+            
+            if not response.data:
+                print(f"✅ No existing positions in {ticker}")
+                return False
+            
+            # Check for open positions (case-insensitive)
+            open_positions = []
+            for position in response.data:
+                status = position.get('status', '').upper()
+                if status == 'OPEN':
+                    open_positions.append(position)
+            
+            if open_positions:
+                print(f"⚠️ Already have {len(open_positions)} OPEN position(s) in {ticker}:")
+                for pos in open_positions:
+                    print(f"   - Trade ID: {pos.get('id')} Status: {pos.get('status')}")
+                return True
+            else:
+                print(f"✅ No OPEN positions in {ticker} (found {len(response.data)} closed positions)")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error checking existing position for {ticker}: {e}")
+            # Be conservative - assume position exists if we can't check
+            print(f"🛡️ Assuming position exists for safety")
+            return True
 
 class PositionManager:
     """
