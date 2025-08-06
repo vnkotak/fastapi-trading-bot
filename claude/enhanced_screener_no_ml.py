@@ -13,12 +13,12 @@ if claude_path not in sys.path:
 
 # Import working AI components (excluding ML)
 try:
-    from claude.market_regime import MarketRegimeDetector
-    from claude.adaptive_config import AdaptiveConfig
+    from market_regime import MarketRegimeDetector
+    from adaptive_config import AdaptiveConfig
     # from multi_timeframe_analyzer import MultiTimeframeAnalyzer  # Comment out for now
     # from ml_predictor import MLEnhancedScoring  # Comment out ML
-    from claude.execution_engine import ExecutionEngine
-    from claude.risk_manager import RiskManager
+    from execution_engine import ExecutionEngine  # Use the updated original
+    from risk_manager import RiskManager
     AI_IMPORTS_OK = True
     print("✅ AI modules imported successfully (ML disabled)")
 except ImportError as e:
@@ -30,10 +30,17 @@ from indicators import (
     calculate_additional_indicators,
     advanced_strategy_score,  # Use traditional scoring
     detect_candle_pattern,
-    send_telegram,
     SUPABASE_URL,
     SUPABASE_KEY
 )
+
+# Import fixed telegram function
+try:
+    from telegram_fix import send_telegram
+    print("✅ Using fixed Telegram function")
+except ImportError:
+    from indicators import send_telegram
+    print("⚠️ Using original Telegram function")
 
 class EnhancedScreenerNoML:
     """
@@ -52,7 +59,7 @@ class EnhancedScreenerNoML:
             self.adaptive_config = AdaptiveConfig()
             # self.multi_tf_analyzer = MultiTimeframeAnalyzer()  # Commented out
             # self.ml_enhanced_scoring = MLEnhancedScoring()     # Commented out
-            self.execution_engine = ExecutionEngine()
+            self.execution_engine = ExecutionEngine()  # Use the updated original
             self.risk_manager = RiskManager()
             print("✅ AI components initialized (ML disabled)")
         except Exception as e:
@@ -62,12 +69,14 @@ class EnhancedScreenerNoML:
         # Current session data
         self.current_regime = None
         self.current_config = None
+        self.processed_tickers = set()  # Track processed tickers in this session
         self.session_stats = {
             'total_analyzed': 0,
             'passed_filters': 0,
             'traditional_filtered': 0,  # Instead of ml_filtered
             'final_signals': 0,
-            'executed_trades': 0
+            'executed_trades': 0,
+            'duplicate_skips': 0  # Track duplicate skips
         }
     
     def run_enhanced_screening(self, auto_execute=False):
@@ -199,13 +208,22 @@ Note: ML components disabled for testing"""
         processed_count = 0
         
         # Limit for testing
-        tickers_to_process = tickers[:1800] if len(tickers) > 1800 else tickers
+        tickers_to_process = tickers[:500] if len(tickers) > 500 else tickers
         
         for ticker in tickers_to_process:
             try:
                 processed_count += 1
                 self.session_stats['total_analyzed'] += 1
-                print(f"Step 1 : {processed_count} : {ticker} ")
+                print(processed_count)
+                
+                # Check for duplicates in this session
+                if ticker in self.processed_tickers:
+                    print(f"⚠️ Skipping duplicate ticker in this session: {ticker}")
+                    self.session_stats['duplicate_skips'] += 1
+                    continue
+                
+                self.processed_tickers.add(ticker)
+                
                 # Progress reporting
                 if processed_count % 50 == 0:
                     progress = (processed_count / len(tickers_to_process)) * 100
@@ -215,7 +233,6 @@ Note: ML components disabled for testing"""
                 if not self._apply_regime_filters(ticker):
                     continue
                 
-                # print("Step 2")
                 self.session_stats['passed_filters'] += 1
                 
                 # Traditional analysis (no ML)
@@ -223,17 +240,15 @@ Note: ML components disabled for testing"""
                 if not stock_result:
                     continue
                 
-                print(f"Step 3 : Score - {stock_result['score']} : Threshold {self.current_config['SCORE_THRESHOLD']}")
                 self.session_stats['traditional_filtered'] += 1
                     
                 # Check if qualifies
                 # if stock_result['score'] >= self.current_config['SCORE_THRESHOLD']:
-                if stock_result['score'] >= 2:
+                if stock_result['score'] >= 2.0:
                     qualified_stocks.append(stock_result)
                     self.session_stats['final_signals'] += 1
                     print(f"✅ Qualified: {ticker} (Score: {stock_result['score']:.2f})")
-
-                # print("Step 4")
+                
                 # Rate limiting
                 time.sleep(0.05)
                 
@@ -243,6 +258,7 @@ Note: ML components disabled for testing"""
         
         print(f"\n📊 Screening Complete:")
         print(f"   Total Analyzed: {self.session_stats['total_analyzed']}")
+        print(f"   Duplicate Skips: {self.session_stats['duplicate_skips']}")
         print(f"   Passed Filters: {self.session_stats['passed_filters']}")
         print(f"   Traditional Filtered: {self.session_stats['traditional_filtered']}")
         print(f"   Final Signals: {self.session_stats['final_signals']}")
@@ -253,8 +269,7 @@ Note: ML components disabled for testing"""
         """Apply regime-specific pre-entry filters"""
         try:
             df = yf.download(ticker, period="3mo", interval="1d", progress=False)
-
-            # print("Step 1.1")
+            
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
             df.columns.name = None
@@ -263,41 +278,33 @@ Note: ML components disabled for testing"""
             
             if df.empty or len(df) < 50:
                 return False
-
-            # print("Step 1.2")
+            
             df = df.astype(float)
             df = calculate_additional_indicators(df)
             df.dropna(inplace=True)
-
-            # print("Step 1.3")
+            
             if df.empty:
                 return False
             
             latest = df.iloc[-1]
-
-            # print("Step 1.4")
+            
             # Get regime-specific filters
             filters = self.adaptive_config.get_regime_specific_filters(self.current_regime)
-
-            # print("Step 1.5")
+            
             # Apply filters
             if latest['RSI'] > filters['skip_rsi_above']:
                 return False
-
-            # print("Step 1.6")
+            
             if latest['Price_Change_3D'] > filters['skip_price_change_3d_above']:
                 return False
-
-            # print("Step 1.7")
+            
             if latest['Price_Change_5D'] > filters['skip_price_change_5d_above']:
                 return False
-
-            # print("Step 1.8")
+            
             if (latest['Volume'] > filters['skip_volume_spike_threshold'] * latest['Volume_avg'] and 
                 latest['Price_Change_1D'] > 7):
                 return False
-
-            # print("Step 1.9")
+            
             if len(df) >= 21:
                 mean_atr = df['ATR'][-21:-1].mean()
                 if pd.notna(mean_atr) and latest['ATR'] > filters['skip_atr_multiplier'] * mean_atr:
@@ -324,34 +331,29 @@ Note: ML components disabled for testing"""
             if df.empty or len(df) < 50:
                 return None
             
-            # print("2.1")
             df = calculate_additional_indicators(df)
             df.dropna(inplace=True)
             
             if df.empty:
                 return None
-
-            # print("2.2")
+            
             # Detect candle pattern
             df['Candle'] = "None"
             df.at[df.index[-1], 'Candle'] = detect_candle_pattern(df)
             
             latest = df.iloc[-1]
             previous = df.iloc[-2] if len(df) > 1 else latest
-
-            # print("2.3")
+            
             # Get traditional strategy score
             score, matched_indicators = advanced_strategy_score(latest, previous)
             
             # Apply regime-specific scoring weights
             weights = self.adaptive_config.get_scoring_weights(self.current_regime)
-
-            # print("2.4")
+            
             # Adjust score based on regime weights (simplified)
             regime_multiplier = weights.get('price_trend', 1.0)  # Use trend weight as overall multiplier
             adjusted_score = score * regime_multiplier
-
-            # print("2.5")
+            
             # Create result
             result = {
                 "ticker": ticker,
@@ -379,7 +381,7 @@ Note: ML components disabled for testing"""
                 "regime_multiplier": round(regime_multiplier, 2),
                 "analysis_type": "traditional_enhanced"
             }
-            print("Ticker Result : ", result)
+            
             return result
             
         except Exception as e:
@@ -509,7 +511,7 @@ Note: ML disabled for testing"""
             print(f"⚠️ Error sending summary: {e}")
 
 # Main functions
-def run_ai_enhanced_screening(auto_execute=False):
+def run_ai_enhanced_screening_no_ml(auto_execute=False):
     """Main function without ML"""
     if not AI_IMPORTS_OK:
         print("❌ AI components not available")
