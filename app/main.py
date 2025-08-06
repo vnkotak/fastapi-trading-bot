@@ -79,7 +79,9 @@ def root():
 
 @app.get("/run-screener")
 def trigger_screener():
-    run_screener()
+    # run_screener()
+    print("Request received for running enhanced screening in Run Screener api")
+    run_ai_enhanced_screening(auto_execute=True)
     return {"status": "✅ Screener executed. Check Telegram for results."}
 
 
