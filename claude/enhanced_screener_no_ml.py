@@ -228,7 +228,7 @@ Note: ML components disabled for testing"""
                     
                 # Check if qualifies
                 # if stock_result['score'] >= self.current_config['SCORE_THRESHOLD']:
-                if stock_result['score'] >= 2
+                if stock_result['score'] >= 2:
                     qualified_stocks.append(stock_result)
                     self.session_stats['final_signals'] += 1
                     print(f"✅ Qualified: {ticker} (Score: {stock_result['score']:.2f})")
