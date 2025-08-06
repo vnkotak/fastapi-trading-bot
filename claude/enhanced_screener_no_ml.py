@@ -79,7 +79,7 @@ class EnhancedScreenerNoML:
             'duplicate_skips': 0  # Track duplicate skips
         }
     
-    def run_ai_enhanced_screening(self, auto_execute=False):
+    def run_enhanced_screening(self, auto_execute=False):
         """
         Run the enhanced screening process without ML
         """
@@ -511,7 +511,7 @@ Note: ML disabled for testing"""
             print(f"⚠️ Error sending summary: {e}")
 
 # Main functions
-def run_ai_enhanced_screening_no_ml(auto_execute=False):
+def run_ai_enhanced_screening(auto_execute=False):
     """Main function without ML"""
     if not AI_IMPORTS_OK:
         print("❌ AI components not available")
