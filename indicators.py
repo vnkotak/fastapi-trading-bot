@@ -1,5 +1,7 @@
 import pandas as pd
 import requests
+import joblib
+import os\import yfinance as yf
 
 # === Strategy Thresholds ===
 RSI_THRESHOLD_MIN = 45
@@ -8,13 +10,35 @@ VOLUME_MULTIPLIER = 2.0
 MACD_SIGNAL_DIFF = 1.0
 STOCH_K_MAX = 80
 WILLR_MAX = -20
-SCORE_THRESHOLD = 5.9  # Used as final threshold in screener/trading
+SCORE_THRESHOLD = 5.9
 
-# === Common Keys ===
-SUPABASE_URL = "https://lfwgposvyckptsrjkkyx.supabase.co"  # e.g. "https://yourproject.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxmd2dwb3N2eWNrcHRzcmpra3l4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTg0MjI3MSwiZXhwIjoyMDY1NDE4MjcxfQ.7Pjsw_HpyE5RHHFshsRT3Ibpn1b6N4CO3F4rIw_GSvc"
+SUPABASE_URL = "https://lfwgposvyckptsrjkkyx.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 TELEGRAM_BOT_TOKEN = "7468828306:AAG6uOChh0SFLZwfhnNMdljQLHTcdPcQTa4"
 TELEGRAM_CHAT_ID = "980258123"
+
+MODEL_PATH = "models/ai_trade_model.pkl"
+_ai_model = None
+
+def load_ai_model():
+    global _ai_model
+    if _ai_model is None:
+        if os.path.exists(MODEL_PATH):
+            _ai_model = joblib.load(MODEL_PATH)
+        else:
+            print("⚠️ ML model not found. Skipping prediction step.")
+            _ai_model = None
+    return _ai_model
+
+def extract_features_for_model(latest):
+    return [
+        latest['Close'], latest['EMA_20'], latest['EMA_50'],
+        latest['RSI'], latest['MACD'], latest['Signal'],
+        latest['MACD_Hist'], latest['Volume'], latest['Volume_avg'],
+        latest['ATR'], latest['BB_Position'],
+        latest['Price_Change_1D'], latest['Price_Change_3D'], latest['Price_Change_5D'],
+        latest['Stoch_K'], latest['Stoch_D'], latest['WilliamsR']
+    ]
 
 def send_telegram(message):
     try:
@@ -97,53 +121,17 @@ def calculate_additional_indicators(df):
 
     return df
 
-# ========== ORIGINAL STRATEGY ========== #
-def advanced_strategy_score(latest, previous):
-    score = 0.0
-    matched = []
+def detect_intraday_spike(ticker):
+    try:
+        df_5min = yf.download(ticker, interval="5m", period="1d", progress=False)
+        df_5min = df_5min[['Close']].dropna()
+        df_5min['change'] = df_5min['Close'].pct_change() * 100
+        recent_spike = df_5min['change'].tail(6).sum() > 3  # 6x5min = 30min
+        return recent_spike
+    except:
+        return False
 
-    if latest['Close'] > latest['EMA_20'] > latest['EMA_50']:
-        score += 1.0
-        matched.append("price")
-    elif latest['EMA_20'] > previous['EMA_20'] and latest['EMA_50'] > previous['EMA_50']:
-        score += 0.5
-        matched.append("ema_trend")
-
-    if RSI_THRESHOLD_MIN <= latest['RSI'] <= RSI_THRESHOLD_MAX and latest['RSI'] > previous['RSI']:
-        score += 1.0
-        matched.append("rsi")
-
-    if latest['Volume'] > VOLUME_MULTIPLIER * latest['Volume_avg'] and latest['Close'] > previous['Close']:
-        score += 1.0
-        matched.append("volume")
-
-    if latest['MACD'] > latest['Signal'] and latest['MACD_Hist'] > 0 and latest['MACD_Hist'] > previous['MACD_Hist']:
-        score += 1.0
-        matched.append("macd")
-
-    if latest['Stoch_K'] > latest['Stoch_D'] and previous['Stoch_K'] < previous['Stoch_D'] and latest['Stoch_K'] < STOCH_K_MAX:
-        score += 0.5
-        matched.append("stoch")
-
-    if latest['WilliamsR'] > previous['WilliamsR'] and latest['WilliamsR'] < WILLR_MAX:
-        score += 0.5
-        matched.append("willr")
-
-    pattern = latest.get("Candle", "None")
-    rsi = latest.get("RSI", 100)
-    change = abs(latest.get("Price_Change_3D", 0))
-
-    if ("Hammer" in pattern or "Engulfing" in pattern) and rsi < 60 and change < 4:
-        score += 0.5
-        matched.append("pattern")
-    elif "Doji" in pattern and rsi < 58 and change < 4:
-        score += 0.25
-        matched.append("pattern")
-
-    return score, matched
-
-# ========== AI-ENHANCED STRATEGY ========== #
-def ai_strategy_score(latest, previous, market_regime="NEUTRAL"):
+def ai_strategy_score(latest, previous, df_weekly=None, df_full=None, ticker=None, market_regime="NEUTRAL"):
     regime_multipliers = {
         "BULL_STRONG": 1.2,
         "BULL_WEAK": 1.1,
@@ -155,6 +143,7 @@ def ai_strategy_score(latest, previous, market_regime="NEUTRAL"):
     regime_multiplier = regime_multipliers.get(market_regime, 1.0)
     score = 0.0
     matched = []
+    reasoning = []
 
     weights = {
         "price_trend": 1.0,
@@ -166,48 +155,91 @@ def ai_strategy_score(latest, previous, market_regime="NEUTRAL"):
         "willr": 0.5,
         "pattern": 0.4,
         "bb_position": 0.3,
-        "price_momentum": 0.5
+        "price_momentum": 0.5,
+        "weekly_confirmation": 1.2,
+        "ml_prediction": 1.5
     }
 
     if latest['Close'] > latest['EMA_20'] > latest['EMA_50']:
         score += weights["price_trend"]
         matched.append("price")
+        reasoning.append("Price is above EMA20 and EMA50.")
     elif latest['EMA_20'] > previous['EMA_20'] and latest['EMA_50'] > previous['EMA_50']:
         score += weights["ema_trend"]
         matched.append("ema_trend")
+        reasoning.append("EMAs are rising.")
 
     if RSI_THRESHOLD_MIN <= latest['RSI'] <= RSI_THRESHOLD_MAX:
         score += weights["rsi"]
         matched.append("rsi")
+        reasoning.append(f"RSI is healthy: {latest['RSI']:.2f}")
 
     if latest['MACD'] > latest['Signal'] and latest['MACD_Hist'] > 0:
         score += weights["macd"]
         matched.append("macd")
+        reasoning.append("MACD bullish crossover.")
 
     if latest['Volume'] > 1.5 * latest['Volume_avg']:
         score += weights["volume"]
         matched.append("volume")
+        reasoning.append("Volume spike detected.")
 
     if latest['Stoch_K'] > latest['Stoch_D'] and latest['Stoch_K'] < STOCH_K_MAX:
         score += weights["stoch"]
         matched.append("stoch")
+        reasoning.append("Stoch bullish crossover.")
 
     if latest['WilliamsR'] > -80 and latest['WilliamsR'] < WILLR_MAX:
         score += weights["willr"]
         matched.append("willr")
+        reasoning.append("Williams %R recovering.")
 
     pattern = latest.get("Candle", "None")
     if any(p in pattern for p in ["Hammer", "Engulfing"]):
         score += weights["pattern"]
         matched.append("pattern")
+        reasoning.append(f"Candle pattern: {pattern}.")
 
     if latest['BB_Position'] < 0.85:
         score += weights["bb_position"]
         matched.append("bb_pos")
+        reasoning.append("Price has room inside Bollinger Band.")
 
     if latest['Price_Change_3D'] > 0:
         score += weights["price_momentum"]
         matched.append("momentum")
+        reasoning.append("Positive 3-day momentum.")
+
+    if df_weekly is not None and len(df_weekly) > 3:
+        latest_w = df_weekly.iloc[-1]
+        prev_w = df_weekly.iloc[-2]
+        if latest_w['Close'] > latest_w['EMA_20'] > latest_w['EMA_50'] and latest_w['Close'] > prev_w['Close']:
+            score += weights["weekly_confirmation"]
+            matched.append("weekly")
+            reasoning.append("Weekly confirms uptrend.")
+
+    if df_full is not None and latest['ATR'] > 1.5 * df_full['ATR'].iloc[-21:-1].mean():
+        score -= 0.5
+        reasoning.append("⚠️ ATR spike: high volatility warning.")
+
+    if ticker and detect_intraday_spike(ticker):
+        score -= 0.5
+        reasoning.append("⚠️ Intraday spike detected in last 30m.")
+
+    model = load_ai_model()
+    if model:
+        try:
+            X = [extract_features_for_model(latest)]
+            y_pred = model.predict(X)[0]
+            y_prob = model.predict_proba(X)[0][1]
+            if y_pred == 1 and y_prob > 0.6:
+                score += weights["ml_prediction"]
+                matched.append("ml")
+                reasoning.append(f"ML model suggests BUY ({y_prob:.2%})")
+            else:
+                reasoning.append(f"ML model not confident ({y_prob:.2%})")
+        except Exception as e:
+            reasoning.append(f"⚠️ ML failed: {e}")
 
     final_score = round(score * regime_multiplier, 2)
-    return final_score, matched
+    return final_score, matched, "; ".join(reasoning)
