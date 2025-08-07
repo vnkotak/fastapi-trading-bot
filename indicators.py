@@ -1,7 +1,8 @@
 import pandas as pd
 import requests
 import joblib
-import os\import yfinance as yf
+import os
+import yfinance as yf
 
 # === Strategy Thresholds ===
 RSI_THRESHOLD_MIN = 45
