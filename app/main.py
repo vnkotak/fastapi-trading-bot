@@ -111,7 +111,7 @@ def run_trading_strategy():
 
     for ticker in tickers:
         try:
-            # analyze_for_trading(ticker)
+            analyze_for_trading(ticker)
             results.append({"ticker": ticker, "status": "processed"})
         except Exception as e:
             results.append({"ticker": ticker, "status": f"error - {str(e)}"})
