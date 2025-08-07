@@ -202,3 +202,97 @@ def analyze_for_trading(ticker, market_regime="NEUTRAL"):
 
     except Exception as e:
         print(f"❌ Error in trading analysis for {ticker}: {e}")
+
+def get_trades_with_summary(status="open"):
+    response = supabase.table("trades").select("*").execute()
+    all_trades = response.data
+
+    processed = []
+    buy_trades = [t for t in all_trades if t["action"] == "BUY"]
+
+    for trade in buy_trades:
+        current_price = None
+        sell_price = None
+        sell_reason = None
+        sell_timestamp = None
+        days_held = None
+
+        sell = next(
+            (s for s in all_trades if s["action"] == "SELL" and s["ticker"] == trade["ticker"] and s["timestamp"] > trade["timestamp"]),
+            None
+        )
+
+        if sell:
+            sell_price = float(sell["price"])
+            sell_reason = sell.get("reason")
+            sell_timestamp = sell.get("timestamp")
+            try:
+                buy_date = parse_datetime(trade["timestamp"])
+                sell_date = parse_datetime(sell_timestamp)
+            except Exception as e:
+                print(f"Invalid timestamp in {trade['ticker']}")
+                raise e
+
+            days_held = (sell_date - buy_date).days
+            trade["status"] = "CLOSED"
+        else:
+            current_price = get_current_price(trade["ticker"])
+            trade["status"] = "OPEN"
+
+        final_price = sell_price or current_price
+        if final_price:
+            quantity = trade.get("quantity", 1)
+            total_invested = trade.get("total_invested", float(trade["price"]) * quantity)
+            current_value = final_price * quantity
+            profit = current_value - total_invested
+            profit_pct = (profit / total_invested) * 100
+
+            processed.append({
+                **trade,
+                "sell_or_current_price": round(final_price, 2),
+                "current_value": round(current_value, 2),
+                "profit": round(profit, 2),
+                "profit_pct": round(profit_pct, 2),
+                "reason": sell_reason if trade["status"] == "CLOSED" else trade.get("reason"),
+                "sell_timestamp": sell_timestamp,
+                "days_held": days_held
+            })
+
+    if status in ["open", "closed"]:
+        filtered = [t for t in processed if t["status"].lower() == status.lower()]
+    else:
+        filtered = processed
+
+    filtered.sort(key=lambda x: x["sell_timestamp"] if status == "closed" else x["timestamp"], reverse=True)
+
+    summary = {
+        "total_invested": 0,
+        "current_value": 0,
+        "profit": 0,
+        "profit_pct": 0,
+        "total_buy_trades": len(buy_trades),
+        "open_trades": len([t for t in processed if t["status"] == "OPEN"]),
+        "closed_trades": len([t for t in processed if t["status"] == "CLOSED"]),
+        "winning_trades": 0,
+        "winning_pct": 0
+    }
+
+    for t in filtered:
+        summary["total_invested"] += t.get("total_invested", float(t["price"]) * t.get("quantity", 1))
+        summary["current_value"] += t.get("current_value", t["sell_or_current_price"] * t.get("quantity", 1))
+        summary["profit"] += t["profit"]
+
+    filtered_winning_trades = [t for t in filtered if t["profit"] > 0]
+    summary["winning_trades"] = len(filtered_winning_trades)
+
+    total_considered = (
+        summary["open_trades"] if status == "open" else
+        summary["closed_trades"] if status == "closed" else
+        summary["open_trades"] + summary["closed_trades"]
+    )
+
+    summary["winning_pct"] = round((summary["winning_trades"] / total_considered) * 100, 2) if total_considered > 0 else 0
+
+    if summary["total_invested"] > 0:
+        summary["profit_pct"] = round((summary["profit"] / summary["total_invested"]) * 100, 2)
+
