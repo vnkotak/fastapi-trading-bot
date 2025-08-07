@@ -5,7 +5,7 @@ from supabase import create_client, Client
 import os
 from indicators import (
     calculate_additional_indicators,
-    advanced_strategy_score,
+    ai_strategy_score,
     send_telegram,
     detect_candle_pattern,
     SCORE_THRESHOLD,
@@ -35,15 +35,12 @@ def fetch_nifty_stocks():
 def analyze_stock(ticker):
     print(f"\n📊 Analyzing: {ticker}")
     try:
-        df = yf.download(ticker, period="3mo", interval="1d", progress=False)
-
+        df = yf.download(ticker, period="6mo", interval="1d", progress=False)
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
         df.columns.name = None
 
-        df = df[['Open', 'High', 'Low', 'Close', 'Volume']].dropna()
-        df = df.astype(float)
-
+        df = df[['Open', 'High', 'Low', 'Close', 'Volume']].dropna().astype(float)
         if df.empty or len(df) < 50:
             print("⚠️ Not enough data.")
             return None
@@ -51,48 +48,24 @@ def analyze_stock(ticker):
         df = calculate_additional_indicators(df)
         df.dropna(inplace=True)
 
-        # Prepare Candle Pattern
+        # Weekly timeframe
+        df_weekly = df.resample('W').agg({
+            'Open': 'first',
+            'High': 'max',
+            'Low': 'min',
+            'Close': 'last',
+            'Volume': 'sum'
+        }).dropna()
+        df_weekly = calculate_additional_indicators(df_weekly)
+
         df['Candle'] = "None"
         df.at[df.index[-1], 'Candle'] = detect_candle_pattern(df)
 
         latest = df.iloc[-1]
         previous = df.iloc[-2]
 
-        # --- Pre-Entry Filters ---
-
-        price_change_1d = latest['Price_Change_1D']
-        price_change_3d = latest['Price_Change_3D']
-        price_change_5d = latest['Price_Change_5D']
-        rsi = latest['RSI']
-        volume = latest['Volume']
-        volume_avg = latest['Volume_avg']
-        atr = latest['ATR']
-
-        mean_atr = df['ATR'][-21:-1].mean()  # 20-day ATR average (excluding today)
-
-        # Skip if recent run-up too strong
-        if price_change_3d > 5 or price_change_5d > 8:
-            print(f"⏳ Skipping {ticker}: recent run too strong (3D={price_change_3d:.2f}%, 5D={price_change_5d:.2f}%)")
-            return None
-
-        # Skip if RSI too high
-        if rsi > 62:
-            print(f"⏳ Skipping {ticker}: RSI too high ({rsi:.2f})")
-            return None
-
-        # Skip if volume spike and price spike (possible fakeout)
-        if volume > 2.5 * volume_avg and price_change_1d > 7:
-            print(f"⏳ Skipping {ticker}: volume and price spike (Vol={volume}, Avg={volume_avg}, PriceChg1D={price_change_1d:.2f}%)")
-            return None
-
-        # Skip if ATR today > 1.4 * mean ATR (high volatility day)
-        if atr > 1.4 * mean_atr:
-            print(f"⏳ Skipping {ticker}: ATR too high today ({atr:.2f} vs avg {mean_atr:.2f})")
-            return None
-
-        # Calculate strategy score
-        score, matched_indicators = advanced_strategy_score(latest, previous)
-        print(f"🧠 {ticker} Strategy Score: {score:.2f}")
+        score, matched_indicators, reasoning = ai_strategy_score(latest, previous, df_weekly)
+        print(f"🧐 {ticker} Strategy Score: {score:.2f}")
 
         if score < SCORE_THRESHOLD:
             print(f"⏳ Skipping {ticker}: Score below threshold ({score:.2f} < {SCORE_THRESHOLD})")
@@ -147,6 +120,7 @@ def analyze_stock(ticker):
             "pattern": latest['Candle'],
             "score": round(score, 2),
             "matched_indicators": matched_indicators,
+            "reasoning": reasoning,
             "history": history_json
         }
 
@@ -166,8 +140,8 @@ def run_screener():
 
     if matches:
         batch_res = supabase.table("screener_batches").insert({
-            "num_matches":len(matches),
-            "source":"auto"
+            "num_matches": len(matches),
+            "source": "auto"
         }).execute()
         batch_id = batch_res.data[0]["id"]
         print(f"📦 Created Screener Batch ID: {batch_id}")
@@ -196,10 +170,11 @@ def run_screener():
                 f"% Change: 1D {stock['priceChange1D']}%, 3D {stock['priceChange3D']}%, 5D {stock['priceChange5D']}%\n"
                 f"Stoch %K: {stock['stochK']} | %D: {stock['stochD']}\n"
                 f"Candle: {stock['pattern']} | Score: {stock['score']}\n"
+                f"🧠 Reasoning: {stock['reasoning']}"
             )
             send_telegram(msg)
     else:
-        send_telegram("🚫 *No stocks matched advanced criteria today.*")
+        send_telegram("🛘 *No stocks matched advanced criteria today.*")
 
 def get_latest_screener_batch():
     try:
