@@ -25,10 +25,11 @@ except ImportError as e:
     print(f"⚠️ Could not import AI modules: {e}")
     AI_IMPORTS_OK = False
 
+from claude_indicators import advanced_strategy_score
+
 # Import existing components
 from indicators import (
     calculate_additional_indicators,
-    advanced_strategy_score,  # Use traditional scoring
     detect_candle_pattern,
     SUPABASE_URL,
     SUPABASE_KEY
