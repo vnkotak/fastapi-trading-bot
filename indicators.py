@@ -99,28 +99,62 @@ def detect_candle_pattern(df):
         print("⚠️ Candle pattern detection failed:", e)
         return "None"
 
-def calculate_additional_indicators(df):
-    rolling_mean = df['Close'].rolling(window=20).mean()
-    rolling_std = df['Close'].rolling(window=20).std()
 
-    df['EMA_20'] = df['Close'].ewm(span=20, adjust=False).mean()
-    df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
-    df['RSI'] = calculate_rsi(df['Close'])
-    df['MACD'], df['Signal'] = calculate_macd(df['Close'])
-    df['MACD_Hist'] = df['MACD'] - df['Signal']
+def calculate_additional_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    from ta.trend import EMAIndicator, MACD, ADXIndicator
+    from ta.momentum import RSIIndicator, StochasticOscillator
+    from ta.volatility import BollingerBands, AverageTrueRange
+
+    df = df.copy()
+
+    # EMA
+    df['EMA_20'] = EMAIndicator(close=df['Close'], window=20).ema_indicator()
+    df['EMA_50'] = EMAIndicator(close=df['Close'], window=50).ema_indicator()
+
+    # RSI
+    df['RSI'] = RSIIndicator(close=df['Close'], window=14).rsi()
+
+    # MACD
+    macd = MACD(close=df['Close'], window_slow=26, window_fast=12, window_sign=9)
+    df['MACD'] = macd.macd()
+    df['Signal'] = macd.macd_signal()
+    df['MACD_Hist'] = macd.macd_diff()
+
+    # Volume average (20-day)
     df['Volume_avg'] = df['Volume'].rolling(window=20).mean()
-    df['ATR'] = (df['High'] - df['Low']).rolling(window=14).mean()
-    df['Upper_BB'] = rolling_mean + 2 * rolling_std
-    df['Lower_BB'] = rolling_mean - 2 * rolling_std
-    df['BB_Position'] = ((df['Close'] - df['Lower_BB']) / (df['Upper_BB'] - df['Lower_BB'])).clip(0, 1)
-    df['Price_Change_1D'] = df['Close'].pct_change(1) * 100
-    df['Price_Change_3D'] = df['Close'].pct_change(3) * 100
-    df['Price_Change_5D'] = df['Close'].pct_change(5) * 100
-    df['Stoch_K'] = ((df['Close'] - df['Low'].rolling(14).min()) /
-                     (df['High'].rolling(14).max() - df['Low'].rolling(14).min())) * 100
-    df['Stoch_D'] = df['Stoch_K'].rolling(3).mean()
-    df['WilliamsR'] = -100 * ((df['High'].rolling(14).max() - df['Close']) /
-                              (df['High'].rolling(14).max() - df['Low'].rolling(14).min()))
+
+    # Bollinger Bands
+    bb = BollingerBands(close=df['Close'], window=20, window_dev=2)
+    df['BB_Middle'] = bb.bollinger_mavg()
+    df['BB_Upper'] = bb.bollinger_hband()
+    df['BB_Lower'] = bb.bollinger_lband()
+    df['BB_Width'] = df['BB_Upper'] - df['BB_Lower']
+
+    bb_range = df['BB_Upper'] - df['BB_Lower']
+    bb_range = bb_range.replace(0, 1e-9)
+    df['BB_Position'] = ((df['Close'] - df['BB_Lower']) / bb_range).clip(0, 1)
+
+    # Price Change %
+    df['Price_Change_1D'] = df['Close'].pct_change(periods=1) * 100
+    df['Price_Change_3D'] = df['Close'].pct_change(periods=3) * 100
+    df['Price_Change_5D'] = df['Close'].pct_change(periods=5) * 100
+
+    # ATR
+    atr = AverageTrueRange(high=df['High'], low=df['Low'], close=df['Close'], window=14)
+    df['ATR'] = atr.average_true_range()
+
+    # Stochastic Oscillator
+    stoch = StochasticOscillator(high=df['High'], low=df['Low'], close=df['Close'], window=14, smooth_window=3)
+    df['Stoch_K'] = stoch.stoch()
+    df['Stoch_D'] = stoch.stoch_signal()
+
+    # Williams %R
+    df['WilliamsR'] = ((df['High'].rolling(14).max() - df['Close']) /
+                       (df['High'].rolling(14).max() - df['Low'].rolling(14).min() + 1e-9)) * -100
+
+    # ADX
+    adx = ADXIndicator(high=df['High'], low=df['Low'], close=df['Close'], window=14)
+    df['ADX'] = adx.adx()
 
     return df
 
