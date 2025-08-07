@@ -18,18 +18,20 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 TELEGRAM_BOT_TOKEN = "7468828306:AAG6uOChh0SFLZwfhnNMdljQLHTcdPcQTa4"
 TELEGRAM_CHAT_ID = "980258123"
 
-MODEL_PATH = "models/ai_trade_model.pkl"
-_ai_model = None
+from io import BytesIO
+import pickle
 
 def load_ai_model():
-    global _ai_model
-    if _ai_model is None:
-        if os.path.exists(MODEL_PATH):
-            _ai_model = joblib.load(MODEL_PATH)
-        else:
-            print("⚠️ ML model not found. Skipping prediction step.")
-            _ai_model = None
-    return _ai_model
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        res = supabase.storage.from_("models").download("model.pkl")
+        model_file = BytesIO(res)
+        model = pickle.load(model_file)
+        return model
+    except Exception as e:
+        print("⚠️ Failed to load model:", e)
+        return None
+
 
 def extract_features_for_model(latest):
     return [
