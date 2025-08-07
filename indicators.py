@@ -8,7 +8,7 @@ VOLUME_MULTIPLIER = 2.0
 MACD_SIGNAL_DIFF = 1.0
 STOCH_K_MAX = 80
 WILLR_MAX = -20
-SCORE_THRESHOLD = 5.9  # Minimum score to qualify as Buy
+SCORE_THRESHOLD = 5.9  # Used as final threshold in screener/trading
 
 # === Common Keys ===
 SUPABASE_URL = "https://lfwgposvyckptsrjkkyx.supabase.co"  # e.g. "https://yourproject.supabase.co"
@@ -17,19 +17,15 @@ TELEGRAM_BOT_TOKEN = "7468828306:AAG6uOChh0SFLZwfhnNMdljQLHTcdPcQTa4"
 TELEGRAM_CHAT_ID = "980258123"
 
 def send_telegram(message):
-    
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
         payload = {
             "chat_id": TELEGRAM_CHAT_ID,
-            "text": message.replace("_",""),
+            "text": message.replace("_", ""),
             "parse_mode": "Markdown"
         }
         response = requests.post(url, json=payload)
-        if response.status_code == 200:
-            print("📬 Telegram alert sent.")
-        else:
-            print("❌ Telegram failed:", response.text)
+        print("📬 Telegram alert sent." if response.status_code == 200 else "❌ Telegram failed:", response.text)
     except Exception as e:
         print("⚠️ Telegram error:", e)
 
@@ -51,7 +47,6 @@ def detect_candle_pattern(df):
     try:
         last = df.iloc[-1]
         second_last = df.iloc[-2]
-
         patterns = []
 
         if abs(last['Close'] - last['Open']) < 0.1 * (last['High'] - last['Low']):
@@ -102,55 +97,117 @@ def calculate_additional_indicators(df):
 
     return df
 
+# ========== ORIGINAL STRATEGY ========== #
 def advanced_strategy_score(latest, previous):
     score = 0.0
-    matched_indicators = []
+    matched = []
 
-    # Simplified trend scoring (avoid double counting)
     if latest['Close'] > latest['EMA_20'] > latest['EMA_50']:
         score += 1.0
-        matched_indicators.append("price")
+        matched.append("price")
     elif latest['EMA_20'] > previous['EMA_20'] and latest['EMA_50'] > previous['EMA_50']:
         score += 0.5
-        matched_indicators.append("ema_trend")
+        matched.append("ema_trend")
 
-    # RSI in range & rising
     if RSI_THRESHOLD_MIN <= latest['RSI'] <= RSI_THRESHOLD_MAX and latest['RSI'] > previous['RSI']:
         score += 1.0
-        matched_indicators.append("rsi")
+        matched.append("rsi")
 
-    # Volume surge + price up
     if latest['Volume'] > VOLUME_MULTIPLIER * latest['Volume_avg'] and latest['Close'] > previous['Close']:
         score += 1.0
-        matched_indicators.append("volume")
+        matched.append("volume")
 
-    # MACD bullish momentum
     if latest['MACD'] > latest['Signal'] and latest['MACD_Hist'] > 0 and latest['MACD_Hist'] > previous['MACD_Hist']:
         score += 1.0
-        matched_indicators.append("macd")
+        matched.append("macd")
 
-    # Stoch crossover
-    if (latest['Stoch_K'] > latest['Stoch_D'] and
-        previous['Stoch_K'] < previous['Stoch_D'] and
-        latest['Stoch_K'] < STOCH_K_MAX):
+    if latest['Stoch_K'] > latest['Stoch_D'] and previous['Stoch_K'] < previous['Stoch_D'] and latest['Stoch_K'] < STOCH_K_MAX:
         score += 0.5
-        matched_indicators.append("stoch")
+        matched.append("stoch")
 
-    # Williams %R signal
     if latest['WilliamsR'] > previous['WilliamsR'] and latest['WilliamsR'] < WILLR_MAX:
         score += 0.5
-        matched_indicators.append("willr")
+        matched.append("willr")
 
-    # Adjust candle pattern weight conditionally
     pattern = latest.get("Candle", "None")
-    price_change_3d = abs(latest.get('Price_Change_3D', 0))
-    rsi = latest.get('RSI', 100)
+    rsi = latest.get("RSI", 100)
+    change = abs(latest.get("Price_Change_3D", 0))
 
-    if ("Hammer" in pattern or "Engulfing" in pattern) and rsi < 60 and price_change_3d < 4:
+    if ("Hammer" in pattern or "Engulfing" in pattern) and rsi < 60 and change < 4:
         score += 0.5
-        matched_indicators.append("pattern")
-    elif "Doji" in pattern and rsi < 58 and price_change_3d < 4:
+        matched.append("pattern")
+    elif "Doji" in pattern and rsi < 58 and change < 4:
         score += 0.25
-        matched_indicators.append("pattern")
+        matched.append("pattern")
 
-    return score, matched_indicators
+    return score, matched
+
+# ========== AI-ENHANCED STRATEGY ========== #
+def ai_strategy_score(latest, previous, market_regime="NEUTRAL"):
+    regime_multipliers = {
+        "BULL_STRONG": 1.2,
+        "BULL_WEAK": 1.1,
+        "NEUTRAL": 1.0,
+        "BEAR_WEAK": 0.8,
+        "BEAR_STRONG": 0.6
+    }
+
+    regime_multiplier = regime_multipliers.get(market_regime, 1.0)
+    score = 0.0
+    matched = []
+
+    weights = {
+        "price_trend": 1.0,
+        "ema_trend": 0.6,
+        "rsi": 0.9,
+        "macd": 1.0,
+        "volume": 0.7,
+        "stoch": 0.5,
+        "willr": 0.5,
+        "pattern": 0.4,
+        "bb_position": 0.3,
+        "price_momentum": 0.5
+    }
+
+    if latest['Close'] > latest['EMA_20'] > latest['EMA_50']:
+        score += weights["price_trend"]
+        matched.append("price")
+    elif latest['EMA_20'] > previous['EMA_20'] and latest['EMA_50'] > previous['EMA_50']:
+        score += weights["ema_trend"]
+        matched.append("ema_trend")
+
+    if RSI_THRESHOLD_MIN <= latest['RSI'] <= RSI_THRESHOLD_MAX:
+        score += weights["rsi"]
+        matched.append("rsi")
+
+    if latest['MACD'] > latest['Signal'] and latest['MACD_Hist'] > 0:
+        score += weights["macd"]
+        matched.append("macd")
+
+    if latest['Volume'] > 1.5 * latest['Volume_avg']:
+        score += weights["volume"]
+        matched.append("volume")
+
+    if latest['Stoch_K'] > latest['Stoch_D'] and latest['Stoch_K'] < STOCH_K_MAX:
+        score += weights["stoch"]
+        matched.append("stoch")
+
+    if latest['WilliamsR'] > -80 and latest['WilliamsR'] < WILLR_MAX:
+        score += weights["willr"]
+        matched.append("willr")
+
+    pattern = latest.get("Candle", "None")
+    if any(p in pattern for p in ["Hammer", "Engulfing"]):
+        score += weights["pattern"]
+        matched.append("pattern")
+
+    if latest['BB_Position'] < 0.85:
+        score += weights["bb_position"]
+        matched.append("bb_pos")
+
+    if latest['Price_Change_3D'] > 0:
+        score += weights["price_momentum"]
+        matched.append("momentum")
+
+    final_score = round(score * regime_multiplier, 2)
+    return final_score, matched
