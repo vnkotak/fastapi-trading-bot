@@ -12,8 +12,8 @@ STOCH_K_MAX = 80
 WILLR_MAX = -20
 SCORE_THRESHOLD = 5.9
 
-SUPABASE_URL = "https://lfwgposvyckptsrjkkyx.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+SUPABASE_URL = "https://lfwgposvyckptsrjkkyx.supabase.co"  # e.g. "https://yourproject.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxmd2dwb3N2eWNrcHRzcmpra3l4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTg0MjI3MSwiZXhwIjoyMDY1NDE4MjcxfQ.7Pjsw_HpyE5RHHFshsRT3Ibpn1b6N4CO3F4rIw_GSvc"
 TELEGRAM_BOT_TOKEN = "7468828306:AAG6uOChh0SFLZwfhnNMdljQLHTcdPcQTa4"
 TELEGRAM_CHAT_ID = "980258123"
 
@@ -243,3 +243,20 @@ def ai_strategy_score(latest, previous, df_weekly=None, df_full=None, ticker=Non
 
     final_score = round(score * regime_multiplier, 2)
     return final_score, matched, "; ".join(reasoning)
+
+def get_dynamic_score_threshold(market_regime: str) -> float:
+    """
+    Returns a dynamic threshold for entry score based on current market regime.
+    Higher thresholds in bearish markets to reduce risk.
+    """
+    base = 5.9  # neutral base threshold
+
+    adjustments = {
+        "BULL_STRONG": -0.5,
+        "BULL_WEAK": -0.2,
+        "NEUTRAL": 0.0,
+        "BEAR_WEAK": 0.4,
+        "BEAR_STRONG": 0.8
+    }
+
+    return round(base + adjustments.get(market_regime.upper(), 0.0), 2)
