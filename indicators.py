@@ -130,8 +130,8 @@ def calculate_additional_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df['BB_Lower'] = bb.bollinger_lband()
     df['BB_Width'] = df['BB_Upper'] - df['BB_Lower']
 
-    bb_range = df['BB_Upper'] - df['BB_Lower']
-    bb_range = bb_range.replace(0, 1e-9)
+    # Prevent division by zero in BB_Position
+    bb_range = (df['BB_Upper'] - df['BB_Lower']).replace(0, 1e-9)
     df['BB_Position'] = ((df['Close'] - df['BB_Lower']) / bb_range).clip(0, 1)
 
     # Price Change %
@@ -149,8 +149,10 @@ def calculate_additional_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df['Stoch_D'] = stoch.stoch_signal()
 
     # Williams %R
-    df['WilliamsR'] = ((df['High'].rolling(14).max() - df['Close']) /
-                       (df['High'].rolling(14).max() - df['Low'].rolling(14).min() + 1e-9)) * -100
+    highest_high = df['High'].rolling(14).max()
+    lowest_low = df['Low'].rolling(14).min()
+    df['WilliamsR'] = ((highest_high - df['Close']) /
+                       (highest_high - lowest_low + 1e-9)) * -100
 
     # ADX
     adx = ADXIndicator(high=df['High'], low=df['Low'], close=df['Close'], window=14)
