@@ -168,9 +168,12 @@ def calculate_additional_indicators(df: pd.DataFrame) -> pd.DataFrame:
                        (highest_high - lowest_low + 1e-9)) * -100
 
     print("3.10")
-    # ADX
-    adx = ADXIndicator(high=df['High'], low=df['Low'], close=df['Close'], window=14)
-    df['ADX'] = adx.adx()
+    # ADX - only calculate if enough candles
+    if len(df) >= 14:  # or >= window
+        adx = ADXIndicator(high=df['High'], low=df['Low'], close=df['Close'], window=14)
+        df['ADX'] = adx.adx()
+    else:
+        df['ADX'] = [None] * len(df)
     print("3.11")
 
     return df
