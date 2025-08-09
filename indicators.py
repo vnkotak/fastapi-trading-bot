@@ -105,24 +105,29 @@ def calculate_additional_indicators(df: pd.DataFrame) -> pd.DataFrame:
     from ta.momentum import RSIIndicator, StochasticOscillator
     from ta.volatility import BollingerBands, AverageTrueRange
 
+    print("3.1")
     df = df.copy()
 
     # EMA
     df['EMA_20'] = EMAIndicator(close=df['Close'], window=20).ema_indicator()
     df['EMA_50'] = EMAIndicator(close=df['Close'], window=50).ema_indicator()
 
+    print("3.2")
     # RSI
     df['RSI'] = RSIIndicator(close=df['Close'], window=14).rsi()
 
+    print("3.3")
     # MACD
     macd = MACD(close=df['Close'], window_slow=26, window_fast=12, window_sign=9)
     df['MACD'] = macd.macd()
     df['Signal'] = macd.macd_signal()
     df['MACD_Hist'] = macd.macd_diff()
 
+    print("3.4")
     # Volume average (20-day)
     df['Volume_avg'] = df['Volume'].rolling(window=20).mean()
 
+    print("3.5")
     # Bollinger Bands
     bb = BollingerBands(close=df['Close'], window=20, window_dev=2)
     df['BB_Middle'] = bb.bollinger_mavg()
@@ -130,15 +135,18 @@ def calculate_additional_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df['BB_Lower'] = bb.bollinger_lband()
     df['BB_Width'] = df['BB_Upper'] - df['BB_Lower']
 
+    print("3.6")
     # Prevent division by zero in BB_Position
     bb_range = (df['BB_Upper'] - df['BB_Lower']).replace(0, 1e-9)
     df['BB_Position'] = ((df['Close'] - df['BB_Lower']) / bb_range).clip(0, 1)
 
+    print("3.7")
     # Price Change %
     df['Price_Change_1D'] = df['Close'].pct_change(periods=1) * 100
     df['Price_Change_3D'] = df['Close'].pct_change(periods=3) * 100
     df['Price_Change_5D'] = df['Close'].pct_change(periods=5) * 100
 
+    print("3.8")
     # ATR
     atr = AverageTrueRange(high=df['High'], low=df['Low'], close=df['Close'], window=14)
     df['ATR'] = atr.average_true_range()
@@ -148,12 +156,14 @@ def calculate_additional_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df['Stoch_K'] = stoch.stoch()
     df['Stoch_D'] = stoch.stoch_signal()
 
+    print("3.9")
     # Williams %R
     highest_high = df['High'].rolling(14).max()
     lowest_low = df['Low'].rolling(14).min()
     df['WilliamsR'] = ((highest_high - df['Close']) /
                        (highest_high - lowest_low + 1e-9)) * -100
 
+    print("3.10")
     # ADX
     adx = ADXIndicator(high=df['High'], low=df['Low'], close=df['Close'], window=14)
     df['ADX'] = adx.adx()
