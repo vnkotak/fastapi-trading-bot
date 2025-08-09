@@ -75,16 +75,19 @@ def detect_candle_pattern(df):
         last = df.iloc[-1]
         second_last = df.iloc[-2]
         patterns = []
+        print("4.1")
 
         if abs(last['Close'] - last['Open']) < 0.1 * (last['High'] - last['Low']):
             patterns.append("Doji")
 
+        print("4.2")
         body = abs(last['Close'] - last['Open'])
         lower_wick = last['Open'] - last['Low'] if last['Close'] > last['Open'] else last['Close'] - last['Low']
         upper_wick = last['High'] - max(last['Open'], last['Close'])
         if lower_wick > 2 * body and upper_wick < body:
             patterns.append("Hammer")
 
+        print("4.3")
         if (
             second_last['Close'] < second_last['Open'] and
             last['Close'] > last['Open'] and
@@ -93,6 +96,7 @@ def detect_candle_pattern(df):
         ):
             patterns.append("Engulfing")
 
+        print("4.4")
         return ", ".join(patterns) if patterns else "None"
 
     except Exception as e:
