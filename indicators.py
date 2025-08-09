@@ -171,6 +171,7 @@ def calculate_additional_indicators(df: pd.DataFrame) -> pd.DataFrame:
     # ADX
     adx = ADXIndicator(high=df['High'], low=df['Low'], close=df['Close'], window=14)
     df['ADX'] = adx.adx()
+    print("3.11")
 
     return df
 
