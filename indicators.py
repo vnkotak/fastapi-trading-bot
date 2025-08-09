@@ -169,14 +169,16 @@ def calculate_additional_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     print("3.10")
     # ADX - only calculate if enough candles
-    if len(df) >= 14:  # or >= window
-        adx = ADXIndicator(high=df['High'], low=df['Low'], close=df['Close'], window=14)
-        df['ADX'] = adx.adx()
-    else:
-        df['ADX'] = [None] * len(df)
+    df['ADX'] = safe_adx(df)
     print("3.11")
 
     return df
+    
+def safe_adx(df, window=14):
+    if len(df) >= window:
+        adx = ADXIndicator(high=df['High'], low=df['Low'], close=df['Close'], window=window)
+        return adx.adx()
+    return [None] * len(df)
 
 def detect_intraday_spike(ticker):
     try:
