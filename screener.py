@@ -39,12 +39,14 @@ def analyze_stock(ticker):
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
         df.columns.name = None
+        print("1")
 
         df = df[['Open', 'High', 'Low', 'Close', 'Volume']].dropna().astype(float)
         if df.empty or len(df) < 50:
             print("⚠️ Not enough data.")
             return None
 
+        print("2")
         df = calculate_additional_indicators(df)
         df.dropna(inplace=True)
 
@@ -56,6 +58,8 @@ def analyze_stock(ticker):
             'Close': 'last',
             'Volume': 'sum'
         }).dropna()
+
+        print("3")
         df_weekly = calculate_additional_indicators(df_weekly)
 
         df['Candle'] = "None"
@@ -63,10 +67,11 @@ def analyze_stock(ticker):
 
         latest = df.iloc[-1]
         previous = df.iloc[-2]
+        print("4")
 
         score, matched_indicators, reasoning = ai_strategy_score(latest, previous, df_weekly)
         print(f"🧐 {ticker} Strategy Score: {score:.2f}")
-
+        
         if score < SCORE_THRESHOLD:
             print(f"⏳ Skipping {ticker}: Score below threshold ({score:.2f} < {SCORE_THRESHOLD})")
             return None
@@ -206,3 +211,4 @@ def get_latest_screener_batch():
 
 if __name__ == "__main__":
     run_screener()
+
