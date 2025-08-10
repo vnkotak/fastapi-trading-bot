@@ -169,7 +169,7 @@ def calculate_additional_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     print("3.10")
     # ADX - only calculate if enough candles
-    df['ADX'] = safe_adx(df)
+    # df['ADX'] = safe_adx(df)
     print("3.11")
 
     return df
