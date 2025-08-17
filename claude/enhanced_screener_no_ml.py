@@ -519,6 +519,7 @@ def run_ai_enhanced_screening(auto_execute=False):
     #    return
         
     try:
+        print("1")
         screener = EnhancedScreenerNoML()
         screener.run_enhanced_screening(auto_execute=auto_execute)
     except Exception as e:
