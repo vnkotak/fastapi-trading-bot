@@ -587,7 +587,7 @@ class MLEnhancedScoring:
         """
         Enhanced scoring that combines traditional and ML approaches
         """
-        from indicators import advanced_strategy_score
+        from claude.indicators import advanced_strategy_score
         
         # Get traditional score
         traditional_score, matched_indicators = advanced_strategy_score(latest, previous)
