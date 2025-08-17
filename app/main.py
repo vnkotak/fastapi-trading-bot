@@ -12,7 +12,7 @@ from indicators import send_telegram
 from screener import run_screener, analyze_stock, fetch_nifty_stocks, get_latest_screener_batch
 from fastapi.middleware.cors import CORSMiddleware
 #from claude.enhanced_screener import run_ai_enhanced_screening
-from claude.enhanced_screener_no_ml import run_ai_enhanced_screening, run_enhanced_screening
+from claude.enhanced_screener_no_ml import run_ai_enhanced_screening
 
 
 #Add Claude folder to path
@@ -141,5 +141,5 @@ def get_trades_summary(status: str = "open"):
 @app.get("/run-enhanced-screening")
 def run_enhanced_screening():
     print("Request received for running enhanced screening")
-    run_enhanced_screening(auto_execute=True)
+    run_ai_enhanced_screening(auto_execute=True)
     return {"status": "Enhanced screening completed"}

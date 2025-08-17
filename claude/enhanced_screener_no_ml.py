@@ -134,18 +134,18 @@ class EnhancedScreenerNoML:
             # Send start notification with safe formatting
             start_message = f"""🤖 AI SCREENING STARTED
 
-📊 Market Regime: {regime}
-🎯 Confidence: {confidence:.1%}
-📈 Style: {characteristics['trading_style']}
-⚡ Expected: {characteristics['expected_signals']}
+                                📊 Market Regime: {regime}
+                                🎯 Confidence: {confidence:.1%}
+                                📈 Style: {characteristics['trading_style']}
+                                ⚡ Expected: {characteristics['expected_signals']}
 
-🔧 Adaptive Settings:
-📊 Score Threshold: {self.current_config['SCORE_THRESHOLD']}
-📈 RSI Range: {self.current_config['RSI_MIN']}-{self.current_config['RSI_MAX']}
-📊 Volume Multiplier: {self.current_config['VOLUME_MULTIPLIER']}x
+                                🔧 Adaptive Settings:
+                                📊 Score Threshold: {self.current_config['SCORE_THRESHOLD']}
+                                📈 RSI Range: {self.current_config['RSI_MIN']}-{self.current_config['RSI_MAX']}
+                                📊 Volume Multiplier: {self.current_config['VOLUME_MULTIPLIER']}x
 
-🕒 Time: {datetime.now().strftime('%H:%M')}
-Note: ML components disabled for testing"""
+                                🕒 Time: {datetime.now().strftime('%H:%M')}
+                                Note: ML components disabled for testing"""
             
             send_telegram(start_message)
             
@@ -480,31 +480,31 @@ Note: ML components disabled for testing"""
                 
                 summary_message = f"""🤖 AI SCREENING COMPLETE
 
-📊 Session Stats:
-🔍 Analyzed: {stats['total_analyzed']}
-✅ Passed Filters: {stats['passed_filters']}
-🧠 Traditional Filtered: {stats['traditional_filtered']}
-🎯 Final Signals: {stats['final_signals']}
-⚡ Executed: {stats['executed_trades']}
+                                    📊 Session Stats:
+                                    🔍 Analyzed: {stats['total_analyzed']}
+                                    ✅ Passed Filters: {stats['passed_filters']}
+                                    🧠 Traditional Filtered: {stats['traditional_filtered']}
+                                    🎯 Final Signals: {stats['final_signals']}
+                                    ⚡ Executed: {stats['executed_trades']}
 
-🏆 Top Signals:
-{stocks_text}
+                                    🏆 Top Signals:
+                                    {stocks_text}
 
-📈 Regime: {self.current_regime}
-🕒 Completed: {datetime.now().strftime('%H:%M')}
-Note: ML disabled for testing"""
+                                    📈 Regime: {self.current_regime}
+                                    🕒 Completed: {datetime.now().strftime('%H:%M')}
+                                    Note: ML disabled for testing"""
             else:
                 summary_message = f"""🤖 AI SCREENING COMPLETE
 
-📊 Session Stats:
-🔍 Analyzed: {stats['total_analyzed']}
-✅ Passed Filters: {stats['passed_filters']}
-🚫 No stocks qualified today
+                📊 Session Stats:
+                🔍 Analyzed: {stats['total_analyzed']}
+                ✅ Passed Filters: {stats['passed_filters']}
+                🚫 No stocks qualified today
 
-📈 Regime: {self.current_regime}
-🔧 Consider adjusting thresholds
+                📈 Regime: {self.current_regime}
+                🔧 Consider adjusting thresholds
 
-🕒 Completed: {datetime.now().strftime('%H:%M')}"""
+                🕒 Completed: {datetime.now().strftime('%H:%M')}"""
             
             send_telegram(summary_message)
             
@@ -514,9 +514,9 @@ Note: ML disabled for testing"""
 # Main functions
 def run_ai_enhanced_screening(auto_execute=False):
     """Main function without ML"""
-    if not AI_IMPORTS_OK:
-        print("❌ AI components not available")
-        return
+    #if not AI_IMPORTS_OK:
+    #    print("❌ AI components not available")
+    #    return
         
     try:
         screener = EnhancedScreenerNoML()
