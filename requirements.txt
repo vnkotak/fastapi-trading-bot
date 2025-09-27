@@ -1,13 +1,4 @@
 fastapi
 uvicorn
-httpx
-python-dotenv
-requests
 yfinance
-ta
-pandas
-supabase
-pandas-ta
-numpy==1.21.4
-scikit-learn 
-joblib
+requests
