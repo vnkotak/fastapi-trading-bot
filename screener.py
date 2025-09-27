@@ -36,6 +36,7 @@ def analyze_stock(ticker):
     print(f"\n📊 Analyzing: {ticker}")
     try:
         df = yf.download(ticker, period="6mo", interval="1d", progress=False)
+        print(df)
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
         df.columns.name = None
@@ -211,4 +212,5 @@ def get_latest_screener_batch():
 
 if __name__ == "__main__":
     run_screener()
+
 
